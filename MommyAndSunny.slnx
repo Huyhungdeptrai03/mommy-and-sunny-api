@@ -1,0 +1,16 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="docker-compose.yml" />
+    <File Path="Dockerfile" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/MommyAndSunny.API/MommyAndSunny.API.csproj" />
+    <Project Path="src/MommyAndSunny.Application/MommyAndSunny.Application.csproj" />
+    <Project Path="src/MommyAndSunny.Domain/MommyAndSunny.Domain.csproj" />
+    <Project Path="src/MommyAndSunny.Infrastructure/MommyAndSunny.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MommyAndSunny.IntegrationTests/MommyAndSunny.IntegrationTests.csproj" />
+    <Project Path="tests/MommyAndSunny.UnitTests/MommyAndSunny.UnitTests.csproj" />
+  </Folder>
+</Solution>
