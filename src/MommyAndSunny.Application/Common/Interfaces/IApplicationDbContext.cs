@@ -28,6 +28,7 @@ namespace MommyAndSunny.Application.Common.Interfaces
         DbSet<OrderStatusHistory> OrderStatusHistories { get; }
         DbSet<Payment> Payments { get; }
         DbSet<RefreshToken> RefreshTokens { get; }
+        DbSet<Review> Reviews { get; }
 
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     }

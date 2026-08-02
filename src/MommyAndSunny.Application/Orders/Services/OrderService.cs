@@ -12,16 +12,35 @@ public class OrderService : IOrderService
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IMomoPaymentService _momoPaymentService;
 
-    public OrderService(IApplicationDbContext context, ICurrentUserService currentUserService)
+    public OrderService(
+        IApplicationDbContext context,
+        ICurrentUserService currentUserService,
+        IMomoPaymentService momoPaymentService)
     {
         _context = context;
         _currentUserService = currentUserService;
+        _momoPaymentService = momoPaymentService;
     }
 
     public async Task<CreateOrderResponse> CreateOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken = default)
     {
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("Yêu cầu đăng nhập");
+
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user is null)
+        {
+            throw new UnauthorizedException("Yêu cầu đăng nhập");
+        }
+
+        // Đúng nghiệp vụ đã thống nhất từ đầu dự án: không bắt buộc xác thực email để duyệt
+        // sản phẩm/thêm giỏ hàng, nhưng BẮT BUỘC xác thực trước khi đặt hàng
+        if (!user.EmailVerified)
+        {
+            throw new DomainException(
+                "Vui lòng xác thực email trước khi đặt hàng. Kiểm tra hộp thư đến (hoặc mục Spam) của bạn.");
+        }
 
         var address = await _context.Addresses
             .FirstOrDefaultAsync(a => a.Id == request.AddressId && a.UserId == userId, cancellationToken);
@@ -124,11 +143,33 @@ public class OrderService : IOrderService
             throw new ConflictException("Có thay đổi tồn kho trong lúc bạn đặt hàng, vui lòng thử lại");
         }
 
+        string? paymentUrl = null;
+
+        // Chỉ khởi tạo giao dịch MoMo SAU KHI đơn hàng đã lưu thành công — nếu MoMo lỗi,
+        // đơn hàng vẫn tồn tại ở trạng thái Pending/chưa thanh toán, khách có thể thử lại
+        // thanh toán sau, không mất đơn hàng vừa đặt
+        if (order.PaymentMethod == PaymentMethod.Momo)
+        {
+            var momoResult = await _momoPaymentService.CreatePaymentRequestAsync(
+                order.OrderCode,
+                order.TotalAmount,
+                $"Thanh toan don hang {order.OrderCode}",
+                cancellationToken);
+
+            if (momoResult.Success)
+            {
+                paymentUrl = momoResult.PayUrl;
+            }
+            // Nếu MoMo lỗi, không throw exception — đơn hàng vẫn được tạo thành công,
+            // khách chỉ đơn giản chưa có link thanh toán ngay, FE sẽ hiển thị phù hợp
+        }
+
         return new CreateOrderResponse
         {
             OrderCode = order.OrderCode,
             TotalAmount = order.TotalAmount,
-            Status = order.Status.ToString()
+            Status = order.Status.ToString(),
+            PaymentUrl = paymentUrl
         };
     }
 

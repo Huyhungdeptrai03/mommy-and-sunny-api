@@ -12,8 +12,11 @@ namespace MommyAndSunny.Application.Products.DTOs
         public string? Color { get; set; }
         public decimal Price { get; set; }
 
+        // Flash Sale — null nếu biến thể không đang giảm giá
+        public decimal? CompareAtPrice { get; set; }
+        public DateTime? SaleEndsAt { get; set; }
+
         // Chỉ trả số tồn kho khả dụng đã tính sẵn — KHÔNG lộ StockQuantity/ReservedQuantity thô
-        // ra API công khai, theo đúng quyết định thiết kế đã thống nhất ở API contract
         public int AvailableQuantity { get; set; }
     }
 }

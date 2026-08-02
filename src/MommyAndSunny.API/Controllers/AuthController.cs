@@ -83,5 +83,33 @@ namespace MommyAndSunny.API.Controllers
             var result = await _authService.RefreshTokenAsync(request, cancellationToken);
             return Ok(new { success = true, data = result, message = (string?)null });
         }
+
+        [HttpPost("verify-email")]
+        public async Task<IActionResult> VerifyEmail(VerifyEmailRequest request, CancellationToken cancellationToken)
+        {
+            await _authService.VerifyEmailAsync(request, cancellationToken);
+            return Ok(new { success = true, data = (object?)null, message = "Xác thực email thành công" });
+        }
+
+        [HttpPost("forgot-password")]
+        public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request, CancellationToken cancellationToken)
+        {
+            await _authService.ForgotPasswordAsync(request, cancellationToken);
+            // Luôn trả về cùng 1 message dù email có tồn tại hay không — khớp với logic Backend
+            return Ok(new
+            {
+                success = true,
+                data = (object?)null,
+                message = "Nếu email này đã đăng ký, chúng tôi đã gửi hướng dẫn đặt lại mật khẩu"
+            });
+        }
+
+        [HttpPost("reset-password")]
+        public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken cancellationToken)
+        {
+            await _authService.ResetPasswordAsync(request, cancellationToken);
+            return Ok(new { success = true, data = (object?)null, message = "Đặt lại mật khẩu thành công" });
+        }
     }
 }
+

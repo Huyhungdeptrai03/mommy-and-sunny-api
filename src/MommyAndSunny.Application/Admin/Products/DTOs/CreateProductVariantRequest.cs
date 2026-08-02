@@ -11,5 +11,10 @@ namespace MommyAndSunny.Application.Admin.Products.DTOs
         public string? Color { get; set; }
         public decimal Price { get; set; }
         public int StockQuantity { get; set; }
+
+
+        // Flash Sale — không bắt buộc
+        public decimal? CompareAtPrice { get; set; }
+        public DateTime? SaleEndsAt { get; set; }
     }
 }

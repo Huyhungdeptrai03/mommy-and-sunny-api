@@ -249,6 +249,8 @@ namespace MommyAndSunny.Application.Admin.Products.Services
                 Size = request.Size,
                 Color = request.Color,
                 Price = request.Price,
+                CompareAtPrice = request.CompareAtPrice,
+                SaleEndsAt = request.SaleEndsAt,
                 StockQuantity = request.StockQuantity,
                 ReservedQuantity = 0
             };
@@ -281,6 +283,8 @@ namespace MommyAndSunny.Application.Admin.Products.Services
             variant.Size = request.Size;
             variant.Color = request.Color;
             variant.Price = request.Price;
+            variant.CompareAtPrice = request.CompareAtPrice;
+            variant.SaleEndsAt = request.SaleEndsAt;
             variant.StockQuantity = request.StockQuantity;
 
             await _context.SaveChangesAsync(cancellationToken);
@@ -355,6 +359,8 @@ namespace MommyAndSunny.Application.Admin.Products.Services
                 Size = variant.Size,
                 Color = variant.Color,
                 Price = variant.Price,
+                CompareAtPrice = variant.CompareAtPrice,
+                SaleEndsAt = variant.SaleEndsAt,
                 StockQuantity = variant.StockQuantity,
                 ReservedQuantity = variant.ReservedQuantity,
                 AvailableQuantity = variant.AvailableQuantity

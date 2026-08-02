@@ -7,6 +7,10 @@ using MommyAndSunny.API.Middleware;
 using MommyAndSunny.API.Services;
 using MommyAndSunny.Application.Auth.DTOs;
 using MommyAndSunny.Application.Common.Interfaces;
+using MommyAndSunny.Application.Common.Options;
+using MommyAndSunny.Infrastructure.BackgroundJobs;
+using MommyAndSunny.Infrastructure.ExternalServices;
+using MommyAndSunny.Infrastructure.ExternalServices.Email;
 using MommyAndSunny.Infrastructure.Persistence;
 using System.Text;
 
@@ -85,6 +89,30 @@ builder.Services.Scan(scan => scan
 builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequest>();
 
 builder.Services.AddHttpContextAccessor();
+
+// ===== Email Service — fallback thông minh, không phụ thuộc cứng vào môi trường =====
+// Nếu CHƯA cấu hình Smtp:Host (dù ở Development hay Production) -> chỉ ghi log,
+// tránh việc đăng ký tài khoản bị lỗi 500 vì thiếu cấu hình SMTP thật.
+// Khi nào có SMTP thật, chỉ cần thêm biến môi trường Smtp:Host trên Railway là
+// tự động chuyển sang gửi email thật, không cần sửa code hay redeploy thủ công logic này.
+var smtpHost = builder.Configuration["Smtp:Host"];
+if (string.IsNullOrWhiteSpace(smtpHost))
+{
+    builder.Services.AddScoped<IEmailService, LogEmailSender>();
+}
+else
+{
+    builder.Services.AddScoped<IEmailService, SmtpEmailSender>();
+}
+
+// ===== MoMo Payment =====
+// Mặc định dùng sandbox test công khai của MoMo (xem ghi chú trong MomoOptions.cs) —
+// hoạt động ngay không cần cấu hình gì thêm để test luồng tạo giao dịch
+builder.Services.Configure<MomoOptions>(builder.Configuration.GetSection("Momo"));
+builder.Services.AddHttpClient<IMomoPaymentService, MomoPaymentGateway>();
+
+// ===== Background Job — tự động hủy đơn MoMo bị treo (chưa thanh toán quá lâu) =====
+builder.Services.AddHostedService<StaleOrderCleanupJob>();
 
 // ===== JWT Authentication (phần bị thiếu gây lỗi trước đó) =====
 var jwtSecret = builder.Configuration["Jwt:Secret"]

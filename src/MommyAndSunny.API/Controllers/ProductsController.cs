@@ -28,5 +28,12 @@ namespace MommyAndSunny.API.Controllers
             var result = await _productService.GetProductBySlugAsync(slug, cancellationToken);
             return Ok(new { success = true, data = result, message = (string?)null });
         }
+
+        [HttpGet("flash-sale")]
+        public async Task<IActionResult> GetFlashSale(CancellationToken cancellationToken)
+        {
+            var result = await _productService.GetFlashSaleAsync(cancellationToken);
+            return Ok(new { success = true, data = result, message = (string?)null });
+        }
     }
 }

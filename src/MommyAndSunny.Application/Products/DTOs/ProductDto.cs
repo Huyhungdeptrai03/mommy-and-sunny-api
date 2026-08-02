@@ -14,7 +14,12 @@ namespace MommyAndSunny.Application.Products.DTOs
         public int AgeRangeMinMonths { get; set; }
         public int AgeRangeMaxMonths { get; set; }
 
+        // Null nếu chưa có đánh giá nào
+        public double? AverageRating { get; set; }
+        public int ReviewCount { get; set; }
+
         public List<ProductImageDto> Images { get; set; } = new();
         public List<ProductVariantDto> Variants { get; set; } = new();
     }
+
 }

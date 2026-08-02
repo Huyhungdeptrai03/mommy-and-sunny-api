@@ -17,6 +17,15 @@ public class User : BaseEntity
     public UserRole Role { get; set; } = UserRole.Customer;
     public bool EmailVerified { get; set; } = false;
 
+    // Dùng cho luồng xác thực email — lưu HASH của token (không lưu token thô),
+    // cùng nguyên tắc bảo mật đã áp dụng với RefreshToken
+    public string? EmailVerificationTokenHash { get; set; }
+    public DateTime? EmailVerificationTokenExpiresAt { get; set; }
+
+    // Dùng cho luồng quên mật khẩu — hiệu lực ngắn hơn (1 giờ) vì nhạy cảm hơn
+    public string? PasswordResetTokenHash { get; set; }
+    public DateTime? PasswordResetTokenExpiresAt { get; set; }
+
     // Navigation properties
     public ICollection<Address> Addresses { get; set; } = new List<Address>();
     public Cart? Cart { get; set; }
