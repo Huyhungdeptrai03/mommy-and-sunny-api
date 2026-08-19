@@ -16,6 +16,7 @@ namespace MommyAndSunny.Application.Common.Interfaces
         DbSet<Category> Categories { get; }
         DbSet<Product> Products { get; }
         DbSet<ProductImage> ProductImages { get; }
+        DbSet<ProductSpecification> ProductSpecifications { get; }
         DbSet<ProductVariant> ProductVariants { get; }
         // Ghi đầy đủ MommyAndSunny.Domain.Entities.Cart (thay vì chỉ "Cart") —
         // vì namespace MommyAndSunny.Application (cha của file này) giờ có chứa
@@ -29,6 +30,9 @@ namespace MommyAndSunny.Application.Common.Interfaces
         DbSet<Payment> Payments { get; }
         DbSet<RefreshToken> RefreshTokens { get; }
         DbSet<Review> Reviews { get; }
+        DbSet<PurchaseBatch> PurchaseBatches { get; }
+        DbSet<Coupon> Coupons { get; }
+        DbSet<WishlistItem> WishlistItems { get; }
 
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     }

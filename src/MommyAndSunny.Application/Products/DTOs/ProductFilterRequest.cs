@@ -8,6 +8,7 @@ namespace MommyAndSunny.Application.Products.DTOs
     {
         public string? CategorySlug { get; set; }
         public int? AgeMonths { get; set; }
+        public Guid? PurchaseBatchId { get; set; }
         public decimal? MinPrice { get; set; }
         public decimal? MaxPrice { get; set; }
         public string? Search { get; set; }

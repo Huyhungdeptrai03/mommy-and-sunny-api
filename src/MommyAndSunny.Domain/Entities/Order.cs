@@ -26,6 +26,19 @@ public class Order : BaseEntity
     public decimal DiscountAmount { get; set; } = 0;
     public decimal TotalAmount { get; set; }
 
+    // Snapshot mã giảm giá đã dùng — giữ FK để kiểm tra "khách này đã dùng mã X chưa"
+    // (query theo CouponId), nhưng CŨNG lưu snapshot CouponCode dạng chuỗi để hiển thị
+    // đúng lịch sử đơn hàng ngay cả khi Admin xóa hẳn Coupon gốc sau này
+    public Guid? CouponId { get; set; }
+    public Coupon? Coupon { get; set; }
+    public string? CouponCode { get; set; }
+
+    // ===== Cọc — chỉ có ý nghĩa với đơn có sản phẩm thuộc đợt hàng xách tay =====
+    // Admin tự nhập số tiền cọc và tự đánh dấu đã thu (thu ngoài hệ thống, không qua
+    // cổng thanh toán) — theo đúng quyết định nghiệp vụ đã thống nhất
+    public decimal? DepositAmount { get; set; }
+    public OrderPaymentStatus DepositPaymentStatus { get; set; } = OrderPaymentStatus.Unpaid;
+
     public string? CustomerNote { get; set; }
 
     // Navigation properties

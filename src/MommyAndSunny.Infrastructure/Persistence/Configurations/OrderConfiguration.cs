@@ -7,6 +7,7 @@ using System.Text;
 
 namespace MommyAndSunny.Infrastructure.Persistence.Configurations
 {
+
     public class OrderConfiguration : IEntityTypeConfiguration<Order>
     {
         public void Configure(EntityTypeBuilder<Order> builder)
@@ -32,6 +33,10 @@ namespace MommyAndSunny.Infrastructure.Persistence.Configurations
             builder.Property(o => o.ShippingFee).HasColumnType("numeric(12,2)");
             builder.Property(o => o.DiscountAmount).HasColumnType("numeric(12,2)");
             builder.Property(o => o.TotalAmount).HasColumnType("numeric(12,2)");
+            builder.Property(o => o.DepositAmount).HasColumnType("numeric(12,2)");
+            builder.Property(o => o.DepositPaymentStatus).HasConversion<string>().HasMaxLength(20).IsRequired();
+
+            builder.Property(o => o.CouponCode).HasMaxLength(50);
 
             builder.Property(o => o.CustomerNote).HasMaxLength(1000);
 
@@ -49,6 +54,13 @@ namespace MommyAndSunny.Infrastructure.Persistence.Configurations
                 .WithOne(p => p.Order)
                 .HasForeignKey(p => p.OrderId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Xóa hẳn 1 Coupon KHÔNG được kéo theo xóa đơn hàng cũ đã dùng mã đó —
+            // chỉ gỡ liên kết, đơn cũ vẫn hiển thị đúng nhờ CouponCode đã snapshot ở trên
+            builder.HasOne(o => o.Coupon)
+                .WithMany()
+                .HasForeignKey(o => o.CouponId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }

@@ -77,7 +77,9 @@ namespace MommyAndSunny.Application.Admin.Products.Services
         {
             var product = await _context.Products
                 .Include(p => p.Images)
+                .Include(p => p.Specifications)
                 .Include(p => p.Variants)
+                .Include(p => p.PurchaseBatch)
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
             if (product is null)
@@ -96,6 +98,30 @@ namespace MommyAndSunny.Application.Admin.Products.Services
                 throw new NotFoundException("danh mục", request.CategoryId);
             }
 
+            // Chỉ validate khi cả 2 mốc tuổi đều có giá trị — sản phẩm không thuộc
+            // ngành mẹ & bé có thể để trống cả 2, không bắt buộc phải điền
+            if (request.AgeRangeMinMonths.HasValue && request.AgeRangeMaxMonths.HasValue
+                && request.AgeRangeMinMonths > request.AgeRangeMaxMonths)
+            {
+                throw new DomainException("Độ tuổi tối thiểu không được lớn hơn độ tuổi tối đa");
+            }
+
+            // Chỉ cho gán vào đợt hàng đang "Đang mở" — đợt đã chốt/đang xử lý không nên
+            // nhận thêm sản phẩm mới nữa
+            if (request.PurchaseBatchId.HasValue)
+            {
+                var batch = await _context.PurchaseBatches
+                    .FirstOrDefaultAsync(b => b.Id == request.PurchaseBatchId.Value, cancellationToken);
+                if (batch is null)
+                {
+                    throw new NotFoundException("đợt hàng", request.PurchaseBatchId.Value);
+                }
+                if (batch.Status != PurchaseBatchStatus.Open)
+                {
+                    throw new DomainException("Chỉ có thể gán sản phẩm vào đợt hàng đang mở");
+                }
+            }
+
             var product = new Product
             {
                 CategoryId = request.CategoryId,
@@ -105,6 +131,7 @@ namespace MommyAndSunny.Application.Admin.Products.Services
                 Brand = request.Brand,
                 AgeRangeMinMonths = request.AgeRangeMinMonths,
                 AgeRangeMaxMonths = request.AgeRangeMaxMonths,
+                PurchaseBatchId = request.PurchaseBatchId,
                 // Luôn tạo ở Draft — admin tự bấm xuất bản sau khi thêm đủ ảnh + biến thể
                 Status = ProductStatus.Draft
             };
@@ -119,7 +146,9 @@ namespace MommyAndSunny.Application.Admin.Products.Services
         {
             var product = await _context.Products
                 .Include(p => p.Images)
+                .Include(p => p.Specifications)
                 .Include(p => p.Variants)
+                .Include(p => p.PurchaseBatch)
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
             if (product is null)
@@ -133,12 +162,33 @@ namespace MommyAndSunny.Application.Admin.Products.Services
                 throw new NotFoundException("danh mục", request.CategoryId);
             }
 
+            if (request.AgeRangeMinMonths.HasValue && request.AgeRangeMaxMonths.HasValue
+                && request.AgeRangeMinMonths > request.AgeRangeMaxMonths)
+            {
+                throw new DomainException("Độ tuổi tối thiểu không được lớn hơn độ tuổi tối đa");
+            }
+
+            if (request.PurchaseBatchId.HasValue)
+            {
+                var batch = await _context.PurchaseBatches
+                    .FirstOrDefaultAsync(b => b.Id == request.PurchaseBatchId.Value, cancellationToken);
+                if (batch is null)
+                {
+                    throw new NotFoundException("đợt hàng", request.PurchaseBatchId.Value);
+                }
+                if (batch.Status != PurchaseBatchStatus.Open)
+                {
+                    throw new DomainException("Chỉ có thể gán sản phẩm vào đợt hàng đang mở");
+                }
+            }
+
             product.CategoryId = request.CategoryId;
             product.Name = request.Name;
             product.Description = request.Description;
             product.Brand = request.Brand;
             product.AgeRangeMinMonths = request.AgeRangeMinMonths;
             product.AgeRangeMaxMonths = request.AgeRangeMaxMonths;
+            product.PurchaseBatchId = request.PurchaseBatchId;
             // Cố ý KHÔNG đổi Slug khi update — tránh vỡ link cũ đã được khách lưu/Google index
 
             await _context.SaveChangesAsync(cancellationToken);
@@ -150,7 +200,9 @@ namespace MommyAndSunny.Application.Admin.Products.Services
         {
             var product = await _context.Products
                 .Include(p => p.Images)
+                .Include(p => p.Specifications)
                 .Include(p => p.Variants)
+                .Include(p => p.PurchaseBatch)
                 .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
             if (product is null)
@@ -225,6 +277,48 @@ namespace MommyAndSunny.Application.Admin.Products.Services
             }
 
             _context.ProductImages.Remove(image);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task<ProductSpecificationAdminDto> AddSpecificationAsync(Guid productId, CreateProductSpecificationRequest request, CancellationToken cancellationToken = default)
+        {
+            var productExists = await _context.Products.AnyAsync(p => p.Id == productId, cancellationToken);
+            if (!productExists)
+            {
+                throw new NotFoundException("sản phẩm", productId);
+            }
+
+            var specification = new ProductSpecification
+            {
+                ProductId = productId,
+                Label = request.Label,
+                Value = request.Value,
+                DisplayOrder = request.DisplayOrder
+            };
+
+            _context.ProductSpecifications.Add(specification);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return new ProductSpecificationAdminDto
+            {
+                Id = specification.Id,
+                Label = specification.Label,
+                Value = specification.Value,
+                DisplayOrder = specification.DisplayOrder
+            };
+        }
+
+        public async Task DeleteSpecificationAsync(Guid productId, Guid specificationId, CancellationToken cancellationToken = default)
+        {
+            var specification = await _context.ProductSpecifications
+                .FirstOrDefaultAsync(s => s.Id == specificationId && s.ProductId == productId, cancellationToken);
+
+            if (specification is null)
+            {
+                throw new NotFoundException("thông số sản phẩm", specificationId);
+            }
+
+            _context.ProductSpecifications.Remove(specification);
             await _context.SaveChangesAsync(cancellationToken);
         }
 
@@ -339,6 +433,8 @@ namespace MommyAndSunny.Application.Admin.Products.Services
                 AgeRangeMinMonths = product.AgeRangeMinMonths,
                 AgeRangeMaxMonths = product.AgeRangeMaxMonths,
                 Status = product.Status.ToString(),
+                PurchaseBatchId = product.PurchaseBatchId,
+                PurchaseBatchName = product.PurchaseBatch?.Name,
                 Images = product.Images.Select(i => new ProductImageAdminDto
                 {
                     Id = i.Id,
@@ -346,6 +442,15 @@ namespace MommyAndSunny.Application.Admin.Products.Services
                     IsPrimary = i.IsPrimary,
                     DisplayOrder = i.DisplayOrder
                 }).ToList(),
+                Specifications = product.Specifications
+                    .OrderBy(s => s.DisplayOrder)
+                    .Select(s => new ProductSpecificationAdminDto
+                    {
+                        Id = s.Id,
+                        Label = s.Label,
+                        Value = s.Value,
+                        DisplayOrder = s.DisplayOrder
+                    }).ToList(),
                 Variants = product.Variants.Select(MapToVariantDto).ToList()
             };
         }

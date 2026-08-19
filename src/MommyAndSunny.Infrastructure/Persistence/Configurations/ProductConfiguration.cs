@@ -33,6 +33,13 @@ namespace MommyAndSunny.Infrastructure.Persistence.Configurations
                 .WithOne(v => v.Product)
                 .HasForeignKey(v => v.ProductId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Xóa 1 đợt hàng KHÔNG được kéo theo xóa sản phẩm — chỉ gỡ liên kết
+            // (sản phẩm trở về trạng thái "bán ngay" thay vì bị xóa oan)
+            builder.HasOne(p => p.PurchaseBatch)
+                .WithMany(b => b.Products)
+                .HasForeignKey(p => p.PurchaseBatchId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 

@@ -147,6 +147,10 @@ namespace MommyAndSunny.Application.Cart.Services
                 .Where(i => i.CartId == cartId)
                 .Include(i => i.ProductVariant)
                     .ThenInclude(v => v.Product)
+                        .ThenInclude(p => p.PurchaseBatch)
+                .Include(i => i.ProductVariant)
+                    .ThenInclude(v => v.Product)
+                        .ThenInclude(p => p.Images)
                 .ToListAsync(cancellationToken);
 
             var itemDtos = items.Select(i => new CartItemDto
@@ -154,6 +158,10 @@ namespace MommyAndSunny.Application.Cart.Services
                 ItemId = i.Id,
                 ProductVariantId = i.ProductVariantId,
                 ProductName = i.ProductVariant.Product.Name,
+                ImageUrl = i.ProductVariant.Product.Images
+                    .Where(img => img.IsPrimary)
+                    .Select(img => img.ImageUrl)
+                    .FirstOrDefault(),
                 Size = i.ProductVariant.Size,
                 Color = i.ProductVariant.Color,
                 UnitPrice = i.ProductVariant.Price,
@@ -162,7 +170,8 @@ namespace MommyAndSunny.Application.Cart.Services
                 IsAvailable = i.Quantity <= i.ProductVariant.AvailableQuantity,
                 Warning = i.Quantity > i.ProductVariant.AvailableQuantity
                     ? $"Chỉ còn {i.ProductVariant.AvailableQuantity} sản phẩm trong kho"
-                    : null
+                    : null,
+                PurchaseBatchName = i.ProductVariant.Product.PurchaseBatch?.Name
             }).ToList();
 
             return new CartDto

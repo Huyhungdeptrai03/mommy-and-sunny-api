@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using MommyAndSunny.Application.Common.Interfaces;
 using MommyAndSunny.Application.Common.Models;
+using MommyAndSunny.Application.Coupons.Services;
 using MommyAndSunny.Application.Orders.DTOs;
 using MommyAndSunny.Domain.Entities;
 using MommyAndSunny.Domain.Enums;
@@ -13,15 +14,18 @@ public class OrderService : IOrderService
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
     private readonly IMomoPaymentService _momoPaymentService;
+    private readonly ICouponService _couponService;
 
     public OrderService(
         IApplicationDbContext context,
         ICurrentUserService currentUserService,
-        IMomoPaymentService momoPaymentService)
+        IMomoPaymentService momoPaymentService,
+        ICouponService couponService)
     {
         _context = context;
         _currentUserService = currentUserService;
         _momoPaymentService = momoPaymentService;
+        _couponService = couponService;
     }
 
     public async Task<CreateOrderResponse> CreateOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken = default)
@@ -56,11 +60,24 @@ public class OrderService : IOrderService
                 .Where(i => i.CartId == cart.Id)
                 .Include(i => i.ProductVariant)
                     .ThenInclude(v => v.Product)
+                        .ThenInclude(p => p.PurchaseBatch)
                 .ToListAsync(cancellationToken);
 
         if (cartItems.Count == 0)
         {
             throw new DomainException("Giỏ hàng trống, không thể đặt hàng");
+        }
+
+        // CHẶN MoMo cho đơn có sản phẩm đặt trước — mô hình cọc (thu thủ công, Admin tự
+        // đánh dấu đã thu) hoàn toàn không tương thích với việc MoMo thu ĐỦ 100% ngay
+        // lúc đặt hàng. Bắt buộc dùng COD, cọc/thanh toán nốt xử lý ngoài hệ thống
+        // (xem AdminOrderService — luồng Đặt cọc/Đánh dấu đã thanh toán)
+        var hasPreOrderItems = cartItems.Any(i => i.ProductVariant.Product.PurchaseBatchId != null);
+        if (hasPreOrderItems && request.PaymentMethod == PaymentMethod.Momo)
+        {
+            throw new DomainException(
+                "Đơn hàng có sản phẩm đặt trước (hàng xách tay) chỉ hỗ trợ thanh toán COD. " +
+                "Tiền cọc và thanh toán còn lại sẽ được xử lý riêng theo hướng dẫn từ shop.");
         }
 
         // Double-check tồn kho lần cuối — tránh trường hợp hết hàng giữa lúc
@@ -76,7 +93,24 @@ public class OrderService : IOrderService
 
         var subTotal = cartItems.Sum(i => i.ProductVariant.Price * i.Quantity);
         const decimal shippingFee = 0;   // MVP: miễn phí ship — tính phí thật để Tier 2
-        const decimal discountAmount = 0; // Chưa có coupon ở MVP
+
+        // Validate LẠI TỪ ĐẦU ở server nếu khách có nhập mã giảm giá — KHÔNG BAO GIỜ tin
+        // số tiền giảm giá do Frontend tính/gửi lên (chỉ dùng để hiển thị xem trước ở Checkout)
+        decimal discountAmount = 0;
+        Coupon? appliedCoupon = null;
+        if (!string.IsNullOrWhiteSpace(request.CouponCode))
+        {
+            var couponResult = await _couponService.ValidateForOrderAsync(
+                request.CouponCode, userId, cartItems, cancellationToken);
+
+            if (!couponResult.IsValid)
+            {
+                throw new DomainException(couponResult.ErrorMessage ?? "Mã giảm giá không hợp lệ");
+            }
+
+            discountAmount = couponResult.DiscountAmount;
+            appliedCoupon = couponResult.Coupon;
+        }
 
         var order = new Order
         {
@@ -92,9 +126,18 @@ public class OrderService : IOrderService
             SubTotal = subTotal,
             ShippingFee = shippingFee,
             DiscountAmount = discountAmount,
+            CouponId = appliedCoupon?.Id,
+            CouponCode = appliedCoupon?.Code,
             TotalAmount = subTotal + shippingFee - discountAmount,
             CustomerNote = request.CustomerNote
         };
+
+        // Ghi nhận lượt dùng NGAY — cùng 1 DbContext với order nên sẽ được lưu chung
+        // trong đúng 1 SaveChangesAsync bên dưới (atomic, không cần transaction riêng)
+        if (appliedCoupon is not null)
+        {
+            appliedCoupon.UsageCount += 1;
+        }
 
         foreach (var item in cartItems)
         {
@@ -106,7 +149,12 @@ public class OrderService : IOrderService
                 VariantDescriptionSnapshot = BuildVariantDescription(item.ProductVariant),
                 UnitPrice = item.ProductVariant.Price,
                 Quantity = item.Quantity,
-                Subtotal = item.ProductVariant.Price * item.Quantity
+                Subtotal = item.ProductVariant.Price * item.Quantity,
+                // Snapshot đợt hàng — xác định đơn này có phải "hàng đặt trước" hay không.
+                // Cần Include(Product).ThenInclude(PurchaseBatch) ở phần load cartItems phía trên
+                // để PurchaseBatch không bị null khi Product có PurchaseBatchId
+                PurchaseBatchId = item.ProductVariant.Product.PurchaseBatchId,
+                PurchaseBatchNameSnapshot = item.ProductVariant.Product.PurchaseBatch?.Name
             });
 
             // Chỉ TĂNG ReservedQuantity — CHƯA trừ StockQuantity thật.
@@ -262,6 +310,20 @@ public class OrderService : IOrderService
             }
         }
 
+        // Hoàn lại lượt dùng mã giảm giá (nếu có) — khách hủy đơn thì coi như "chưa dùng",
+        // được phép dùng lại mã đó cho đơn khác. Lưu ý: chỉ áp dụng cho 2 luồng hủy chủ động
+        // (khách tự hủy ở đây, Admin hủy tay) — 2 luồng tự động (dọn dẹp đơn treo, hủy đợt
+        // hàng) KHÔNG hoàn lượt dùng, giữ phạm vi đơn giản cho MVP
+        if (order.CouponId.HasValue)
+        {
+            var coupon = await _context.Coupons
+                .FirstOrDefaultAsync(c => c.Id == order.CouponId.Value, cancellationToken);
+            if (coupon is not null)
+            {
+                coupon.UsageCount = Math.Max(0, coupon.UsageCount - 1);
+            }
+        }
+
         // Thêm trực tiếp vào DbSet thay vì qua order.StatusHistory.Add(...) —
         // cách cũ (qua navigation collection của 1 Order được load KHÔNG kèm Include StatusHistory)
         // khiến EF Core đôi khi suy luận sai trạng thái entity thành Modified thay vì Added,
@@ -317,7 +379,10 @@ public class OrderService : IOrderService
             SubTotal = order.SubTotal,
             ShippingFee = order.ShippingFee,
             DiscountAmount = order.DiscountAmount,
+            CouponCode = order.CouponCode,
             TotalAmount = order.TotalAmount,
+            DepositAmount = order.DepositAmount,
+            DepositPaymentStatus = order.DepositPaymentStatus.ToString(),
             CustomerNote = order.CustomerNote,
             CreatedAt = order.CreatedAt,
             Items = order.Items.Select(i => new OrderItemDto
@@ -326,7 +391,8 @@ public class OrderService : IOrderService
                 VariantDescription = i.VariantDescriptionSnapshot,
                 UnitPrice = i.UnitPrice,
                 Quantity = i.Quantity,
-                Subtotal = i.Subtotal
+                Subtotal = i.Subtotal,
+                PurchaseBatchName = i.PurchaseBatchNameSnapshot
             }).ToList(),
             StatusHistory = order.StatusHistory
                 .OrderBy(h => h.ChangedAt)

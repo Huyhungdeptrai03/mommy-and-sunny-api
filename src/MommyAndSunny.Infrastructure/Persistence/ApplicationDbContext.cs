@@ -7,6 +7,7 @@ using System.Text;
 
 namespace MommyAndSunny.Infrastructure.Persistence
 {
+
     public class ApplicationDbContext : DbContext, IApplicationDbContext
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
@@ -17,6 +18,7 @@ namespace MommyAndSunny.Infrastructure.Persistence
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<Product> Products => Set<Product>();
         public DbSet<ProductImage> ProductImages => Set<ProductImage>();
+        public DbSet<ProductSpecification> ProductSpecifications => Set<ProductSpecification>();
         public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
         public DbSet<Cart> Carts => Set<Cart>();
         public DbSet<CartItem> CartItems => Set<CartItem>();
@@ -26,6 +28,9 @@ namespace MommyAndSunny.Infrastructure.Persistence
         public DbSet<Payment> Payments => Set<Payment>();
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
         public DbSet<Review> Reviews => Set<Review>();
+        public DbSet<PurchaseBatch> PurchaseBatches => Set<PurchaseBatch>();
+        public DbSet<Coupon> Coupons => Set<Coupon>();
+        public DbSet<WishlistItem> WishlistItems => Set<WishlistItem>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

@@ -11,6 +11,7 @@ namespace MommyAndSunny.Application.Products.Services
         Task<PagedResult<ProductListItemDto>> GetProductsAsync(ProductFilterRequest filter, CancellationToken cancellationToken = default);
         Task<ProductDto> GetProductBySlugAsync(string slug, CancellationToken cancellationToken = default);
         Task<List<FlashSaleItemDto>> GetFlashSaleAsync(CancellationToken cancellationToken = default);
+        Task<List<string>> GetBrandsAsync(CancellationToken cancellationToken = default);
     }
 
 }

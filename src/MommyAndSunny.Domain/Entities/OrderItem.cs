@@ -20,4 +20,10 @@ public class OrderItem : BaseEntity
     public decimal UnitPrice { get; set; }
     public int Quantity { get; set; }
     public decimal Subtotal { get; set; }
+
+    // Snapshot đợt hàng tại thời điểm đặt — NULL nghĩa là hàng có sẵn (mua ngay),
+    // có giá trị nghĩa là hàng đặt trước thuộc 1 đợt xách tay cụ thể. Đây là cơ sở để
+    // xác định 1 ĐƠN HÀNG có cần đi qua luồng trạng thái mở rộng (Purchasing -> ...) hay không
+    public Guid? PurchaseBatchId { get; set; }
+    public string? PurchaseBatchNameSnapshot { get; set; }
 }

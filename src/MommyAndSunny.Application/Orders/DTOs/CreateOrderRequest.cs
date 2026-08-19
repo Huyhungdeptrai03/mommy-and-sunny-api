@@ -9,6 +9,7 @@ namespace MommyAndSunny.Application.Orders.DTOs
     {
         public Guid AddressId { get; set; }
         public PaymentMethod PaymentMethod { get; set; }
+        public string? CouponCode { get; set; }
         public string? CustomerNote { get; set; }
 
         // CỐ Ý không có field Items — BE luôn tự lấy từ giỏ hàng server-side,

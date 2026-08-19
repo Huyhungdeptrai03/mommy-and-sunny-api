@@ -11,5 +11,8 @@ namespace MommyAndSunny.Application.Orders.DTOs
         public decimal UnitPrice { get; set; }
         public int Quantity { get; set; }
         public decimal Subtotal { get; set; }
+
+        // Có giá trị nghĩa là sản phẩm này thuộc 1 đợt hàng đặt trước (xách tay)
+        public string? PurchaseBatchName { get; set; }
     }
 }

@@ -11,5 +11,8 @@ namespace MommyAndSunny.Application.Admin.Orders.Service
         Task<PagedResult<AdminOrderListItemDto>> GetOrdersAsync(AdminOrderFilterRequest filter, CancellationToken cancellationToken = default);
         Task<AdminOrderDetailDto> GetOrderByIdAsync(Guid id, CancellationToken cancellationToken = default);
         Task UpdateOrderStatusAsync(Guid id, UpdateOrderStatusRequest request, CancellationToken cancellationToken = default);
+        Task<AdminOrderDetailDto> SetDepositAsync(Guid id, decimal depositAmount, CancellationToken cancellationToken = default);
+        Task<AdminOrderDetailDto> MarkDepositPaidAsync(Guid id, CancellationToken cancellationToken = default);
+        Task<AdminOrderDetailDto> MarkFinalPaymentPaidAsync(Guid id, CancellationToken cancellationToken = default);
     }
 }

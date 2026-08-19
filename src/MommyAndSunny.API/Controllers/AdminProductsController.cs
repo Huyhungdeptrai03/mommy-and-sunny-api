@@ -66,6 +66,20 @@ namespace MommyAndSunny.API.Controllers
             return NoContent();
         }
 
+        [HttpPost("{id}/specifications")]
+        public async Task<IActionResult> AddSpecification(Guid id, CreateProductSpecificationRequest request, CancellationToken cancellationToken)
+        {
+            var result = await _adminProductService.AddSpecificationAsync(id, request, cancellationToken);
+            return StatusCode(201, new { success = true, data = result, message = (string?)null });
+        }
+
+        [HttpDelete("{id}/specifications/{specificationId}")]
+        public async Task<IActionResult> DeleteSpecification(Guid id, Guid specificationId, CancellationToken cancellationToken)
+        {
+            await _adminProductService.DeleteSpecificationAsync(id, specificationId, cancellationToken);
+            return NoContent();
+        }
+
         [HttpPost("{id}/variants")]
         public async Task<IActionResult> AddVariant(Guid id, CreateProductVariantRequest request, CancellationToken cancellationToken)
         {

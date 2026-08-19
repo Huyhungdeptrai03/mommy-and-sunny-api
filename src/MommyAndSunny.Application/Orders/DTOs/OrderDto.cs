@@ -4,6 +4,7 @@ using System.Text;
 
 namespace MommyAndSunny.Application.Orders.DTOs
 {
+
     public class OrderDto
     {
         public string OrderCode { get; set; } = string.Empty;
@@ -18,7 +19,12 @@ namespace MommyAndSunny.Application.Orders.DTOs
         public decimal SubTotal { get; set; }
         public decimal ShippingFee { get; set; }
         public decimal DiscountAmount { get; set; }
+        public string? CouponCode { get; set; }
         public decimal TotalAmount { get; set; }
+
+        // Null nghĩa là đơn không yêu cầu cọc (không có sản phẩm đặt trước)
+        public decimal? DepositAmount { get; set; }
+        public string DepositPaymentStatus { get; set; } = string.Empty;
 
         public string? CustomerNote { get; set; }
         public DateTime CreatedAt { get; set; }

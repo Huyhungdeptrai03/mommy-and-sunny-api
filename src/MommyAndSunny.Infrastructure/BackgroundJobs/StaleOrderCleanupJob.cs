@@ -8,7 +8,6 @@ using MommyAndSunny.Domain.Entities;
 using MommyAndSunny.Domain.Enums;
 
 namespace MommyAndSunny.Infrastructure.BackgroundJobs;
-
 // CỐ Ý đặt tên KHÔNG kết thúc bằng "Service" — tránh Scrutor tự động bắt nhầm class
 // này (không có interface tương ứng), cùng lý do đã áp dụng với LogEmailSender,
 // SmtpEmailSender, MomoPaymentGateway ở các bước trước
@@ -64,9 +63,11 @@ public class StaleOrderCleanupJob : BackgroundService
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
 
-        var cutoff = DateTime.UtcNow - _staleThreshold;
+        var ordersToCancel = new List<(Order Order, string Reason)>();
 
-        var staleOrders = await context.Orders
+        // ===== Nhánh 1: đơn MoMo chưa thanh toán quá lâu (đã có từ trước) =====
+        var cutoff = DateTime.UtcNow - _staleThreshold;
+        var staleMomoOrders = await context.Orders
             .Include(o => o.Items)
             .Where(o =>
                 o.PaymentMethod == PaymentMethod.Momo &&
@@ -75,7 +76,54 @@ public class StaleOrderCleanupJob : BackgroundService
                 o.CreatedAt < cutoff)
             .ToListAsync(cancellationToken);
 
-        if (staleOrders.Count == 0)
+        foreach (var order in staleMomoOrders)
+        {
+            ordersToCancel.Add((order, "Tự động hủy do quá thời gian chưa thanh toán MoMo"));
+        }
+
+        // ===== Nhánh 2 (MỚI): đơn COD có sản phẩm đặt trước, chưa thu cọc, và đợt hàng
+        // gốc đã ĐÓNG (CloseDate đã qua) — khách bỏ ngang không đặt cọc, giữ tồn kho vô thời
+        // hạn nếu không dọn. Không áp dụng cho đơn COD hàng có sẵn (Pending vẫn hợp lệ chờ
+        // Admin xác nhận thủ công như bình thường) =====
+        var codPreOrders = await context.Orders
+            .Include(o => o.Items)
+            .Where(o =>
+                o.PaymentMethod == PaymentMethod.COD &&
+                o.Status == OrderStatus.Pending &&
+                o.DepositPaymentStatus == OrderPaymentStatus.Unpaid &&
+                o.Items.Any(i => i.PurchaseBatchId != null))
+            .ToListAsync(cancellationToken);
+
+        if (codPreOrders.Count > 0)
+        {
+            var batchIds = codPreOrders
+                .SelectMany(o => o.Items)
+                .Where(i => i.PurchaseBatchId != null)
+                .Select(i => i.PurchaseBatchId!.Value)
+                .Distinct()
+                .ToList();
+
+            var batchCloseDates = await context.PurchaseBatches
+                .Where(b => batchIds.Contains(b.Id))
+                .ToDictionaryAsync(b => b.Id, b => b.CloseDate, cancellationToken);
+
+            var now = DateTime.UtcNow;
+            foreach (var order in codPreOrders)
+            {
+                var isBatchClosed = order.Items.Any(i =>
+                    i.PurchaseBatchId != null &&
+                    batchCloseDates.TryGetValue(i.PurchaseBatchId.Value, out var closeDate) &&
+                    closeDate < now);
+
+                if (isBatchClosed)
+                {
+                    ordersToCancel.Add((order,
+                        "Tự động hủy do chưa đặt cọc trước khi đợt hàng đóng"));
+                }
+            }
+        }
+
+        if (ordersToCancel.Count == 0)
         {
             _logger.LogInformation(
                 "[OrderCleanup] Đã kiểm tra lúc {Time}, không có đơn nào cần hủy",
@@ -86,8 +134,8 @@ public class StaleOrderCleanupJob : BackgroundService
         // Tra cứu tường minh qua ProductVariantId thay vì dùng navigation property
         // (không chắc chắn OrderItem có navigation "Variant" hay không) — an toàn hơn,
         // cùng cách tiếp cận đã dùng ở ReviewService trước đó
-        var variantIds = staleOrders
-            .SelectMany(o => o.Items)
+        var variantIds = ordersToCancel
+            .SelectMany(x => x.Order.Items)
             .Select(i => i.ProductVariantId)
             .Distinct()
             .ToList();
@@ -96,7 +144,7 @@ public class StaleOrderCleanupJob : BackgroundService
             .Where(v => variantIds.Contains(v.Id))
             .ToDictionaryAsync(v => v.Id, cancellationToken);
 
-        foreach (var order in staleOrders)
+        foreach (var (order, reason) in ordersToCancel)
         {
             // Giải phóng tồn kho đã giữ chỗ — quan trọng nhất của cả job này
             foreach (var item in order.Items)
@@ -107,21 +155,19 @@ public class StaleOrderCleanupJob : BackgroundService
                 }
             }
 
-            order.Status = OrderStatus.Cancelled;
-
             context.OrderStatusHistories.Add(new OrderStatusHistory
             {
                 OrderId = order.Id,
                 FromStatus = OrderStatus.Pending,
                 ToStatus = OrderStatus.Cancelled,
                 ChangedByUserId = null,
-                Note = "Tự động hủy do quá thời gian chưa thanh toán MoMo",
+                Note = reason,
                 ChangedAt = DateTime.UtcNow
             });
 
-            _logger.LogInformation(
-                "Tự động hủy đơn {OrderCode} do quá {Minutes} phút chưa thanh toán MoMo",
-                order.OrderCode, _staleThreshold.TotalMinutes);
+            order.Status = OrderStatus.Cancelled;
+
+            _logger.LogInformation("Tự động hủy đơn {OrderCode}: {Reason}", order.OrderCode, reason);
         }
 
         await context.SaveChangesAsync(cancellationToken);

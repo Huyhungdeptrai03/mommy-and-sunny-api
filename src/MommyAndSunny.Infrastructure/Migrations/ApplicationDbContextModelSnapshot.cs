@@ -176,10 +176,76 @@ namespace MommyAndSunny.Infrastructure.Migrations
                     b.ToTable("Categories", (string)null);
                 });
 
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.Coupon", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CategoryId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DiscountType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<decimal>("DiscountValue")
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal?>("MaxDiscountAmount")
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<decimal?>("MinOrderValue")
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("TotalUsageLimit")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("UsageCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Coupons", (string)null);
+                });
+
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.Order", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CouponCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<Guid?>("CouponId")
                         .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
@@ -188,6 +254,14 @@ namespace MommyAndSunny.Infrastructure.Migrations
                     b.Property<string>("CustomerNote")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<decimal?>("DepositAmount")
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<string>("DepositPaymentStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<decimal>("DiscountAmount")
                         .HasColumnType("numeric(12,2)");
@@ -244,6 +318,8 @@ namespace MommyAndSunny.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CouponId");
+
                     b.HasIndex("OrderCode")
                         .IsUnique();
 
@@ -273,6 +349,13 @@ namespace MommyAndSunny.Infrastructure.Migrations
 
                     b.Property<Guid>("ProductVariantId")
                         .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PurchaseBatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PurchaseBatchNameSnapshot")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<int>("Quantity")
                         .HasColumnType("integer");
@@ -398,10 +481,10 @@ namespace MommyAndSunny.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<int>("AgeRangeMaxMonths")
+                    b.Property<int?>("AgeRangeMaxMonths")
                         .HasColumnType("integer");
 
-                    b.Property<int>("AgeRangeMinMonths")
+                    b.Property<int?>("AgeRangeMinMonths")
                         .HasColumnType("integer");
 
                     b.Property<string>("Brand")
@@ -422,6 +505,9 @@ namespace MommyAndSunny.Infrastructure.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
+                    b.Property<Guid?>("PurchaseBatchId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -438,6 +524,8 @@ namespace MommyAndSunny.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("PurchaseBatchId");
 
                     b.HasIndex("Slug")
                         .IsUnique();
@@ -478,6 +566,41 @@ namespace MommyAndSunny.Infrastructure.Migrations
                     b.HasIndex("ProductId");
 
                     b.ToTable("ProductImages", (string)null);
+                });
+
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.ProductSpecification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.ToTable("ProductSpecifications", (string)null);
                 });
 
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.ProductVariant", b =>
@@ -542,6 +665,44 @@ namespace MommyAndSunny.Infrastructure.Migrations
 
                             t.HasCheckConstraint("CK_ProductVariants_StockQuantity", "\"StockQuantity\" >= 0");
                         });
+                });
+
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.PurchaseBatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CloseDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CountryOfOrigin")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EstimatedArrivalDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("OpenDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PurchaseBatches", (string)null);
                 });
 
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.RefreshToken", b =>
@@ -681,6 +842,34 @@ namespace MommyAndSunny.Infrastructure.Migrations
                     b.ToTable("Users", (string)null);
                 });
 
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.WishlistItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("UserId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("WishlistItems", (string)null);
+                });
+
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.Address", b =>
                 {
                     b.HasOne("MommyAndSunny.Domain.Entities.User", "User")
@@ -732,13 +921,30 @@ namespace MommyAndSunny.Infrastructure.Migrations
                     b.Navigation("ParentCategory");
                 });
 
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.Coupon", b =>
+                {
+                    b.HasOne("MommyAndSunny.Domain.Entities.Category", "Category")
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Category");
+                });
+
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.Order", b =>
                 {
+                    b.HasOne("MommyAndSunny.Domain.Entities.Coupon", "Coupon")
+                        .WithMany()
+                        .HasForeignKey("CouponId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("MommyAndSunny.Domain.Entities.User", "User")
                         .WithMany("Orders")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Coupon");
 
                     b.Navigation("User");
                 });
@@ -799,13 +1005,31 @@ namespace MommyAndSunny.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("MommyAndSunny.Domain.Entities.PurchaseBatch", "PurchaseBatch")
+                        .WithMany("Products")
+                        .HasForeignKey("PurchaseBatchId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Category");
+
+                    b.Navigation("PurchaseBatch");
                 });
 
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.ProductImage", b =>
                 {
                     b.HasOne("MommyAndSunny.Domain.Entities.Product", "Product")
                         .WithMany("Images")
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+                });
+
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.ProductSpecification", b =>
+                {
+                    b.HasOne("MommyAndSunny.Domain.Entities.Product", "Product")
+                        .WithMany("Specifications")
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -854,6 +1078,25 @@ namespace MommyAndSunny.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.WishlistItem", b =>
+                {
+                    b.HasOne("MommyAndSunny.Domain.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MommyAndSunny.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.Cart", b =>
                 {
                     b.Navigation("Items");
@@ -879,6 +1122,8 @@ namespace MommyAndSunny.Infrastructure.Migrations
                 {
                     b.Navigation("Images");
 
+                    b.Navigation("Specifications");
+
                     b.Navigation("Variants");
                 });
 
@@ -887,6 +1132,11 @@ namespace MommyAndSunny.Infrastructure.Migrations
                     b.Navigation("CartItems");
 
                     b.Navigation("OrderItems");
+                });
+
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.PurchaseBatch", b =>
+                {
+                    b.Navigation("Products");
                 });
 
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.User", b =>

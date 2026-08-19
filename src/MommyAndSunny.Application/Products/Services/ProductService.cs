@@ -31,9 +31,18 @@ public class ProductService : IProductService
             query = query.Where(p => p.Category.Slug == filter.CategorySlug);
         }
 
+        if (filter.PurchaseBatchId.HasValue)
+        {
+            query = query.Where(p => p.PurchaseBatchId == filter.PurchaseBatchId.Value);
+        }
+
         if (filter.AgeMonths.HasValue)
         {
+            // Sản phẩm không gắn tuổi (đồ gia dụng, mỹ phẩm...) sẽ KHÔNG xuất hiện khi
+            // khách lọc theo tuổi — viết rõ điều kiện != null thay vì phụ thuộc ngầm định
+            // vào cách SQL tự loại bỏ so sánh với NULL
             query = query.Where(p =>
+                p.AgeRangeMinMonths != null && p.AgeRangeMaxMonths != null &&
                 filter.AgeMonths.Value >= p.AgeRangeMinMonths &&
                 filter.AgeMonths.Value <= p.AgeRangeMaxMonths);
         }
@@ -50,8 +59,16 @@ public class ProductService : IProductService
 
         if (!string.IsNullOrWhiteSpace(filter.Search))
         {
-            // Đơn giản hóa cho MVP (Contains cơ bản) — tìm kiếm full-text nâng cao để Tier 2
-            query = query.Where(p => p.Name.Contains(filter.Search));
+            // Khớp cả Tên, Thương hiệu VÀ Danh mục (không phân biệt hoa/thường qua ToLower) —
+            // để tìm "nước hoa" ra đúng nhóm sản phẩm dù tên sản phẩm không chứa chữ đó,
+            // thay vì chỉ khớp Name như trước (MVP ban đầu). Dùng ToLower thay vì EF.Functions.ILike
+            // (đặc thù Npgsql) để Application layer không phụ thuộc ngược vào Infrastructure.
+            // Full-text nâng cao để Tier 2
+            var term = filter.Search.ToLower();
+            query = query.Where(p =>
+                p.Name.ToLower().Contains(term) ||
+                (p.Brand != null && p.Brand.ToLower().Contains(term)) ||
+                p.Category.Name.ToLower().Contains(term));
         }
 
         query = filter.SortBy switch
@@ -78,6 +95,7 @@ public class ProductService : IProductService
                     .Where(i => i.IsPrimary)
                     .Select(i => i.ImageUrl)
                     .FirstOrDefault(),
+                PurchaseBatchName = p.PurchaseBatch != null ? p.PurchaseBatch.Name : null,
                 MinPrice = p.Variants.Min(v => v.Price),
                 MaxPrice = p.Variants.Max(v => v.Price)
             })
@@ -96,7 +114,9 @@ public class ProductService : IProductService
     {
         var product = await _context.Products
             .Include(p => p.Images)
+            .Include(p => p.Specifications)
             .Include(p => p.Variants)
+            .Include(p => p.PurchaseBatch)
             .FirstOrDefaultAsync(p => p.Slug == slug && p.Status == ProductStatus.Published, cancellationToken);
 
         if (product is null)
@@ -121,9 +141,15 @@ public class ProductService : IProductService
             AgeRangeMaxMonths = product.AgeRangeMaxMonths,
             AverageRating = reviewStats != null ? Math.Round(reviewStats.Average, 1) : (double?)null,
             ReviewCount = reviewStats?.Count ?? 0,
+            PurchaseBatchName = product.PurchaseBatch?.Name,
+            EstimatedArrivalDate = product.PurchaseBatch?.EstimatedArrivalDate,
             Images = product.Images
                 .OrderBy(i => i.DisplayOrder)
                 .Select(i => new ProductImageDto { Url = i.ImageUrl, IsPrimary = i.IsPrimary })
+                .ToList(),
+            Specifications = product.Specifications
+                .OrderBy(s => s.DisplayOrder)
+                .Select(s => new ProductSpecificationDto { Label = s.Label, Value = s.Value })
                 .ToList(),
             Variants = product.Variants
                 .Select(v => new ProductVariantDto
@@ -172,4 +198,17 @@ public class ProductService : IProductService
             AvailableQuantity = v.AvailableQuantity
         }).ToList();
     }
+
+    public async Task<List<string>> GetBrandsAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.Products
+            .Where(p => p.Status == ProductStatus.Published && p.Brand != null && p.Brand != "")
+            .Select(p => p.Brand!)
+            .Distinct()
+            .OrderBy(b => b)
+            .Take(12)
+            .ToListAsync(cancellationToken);
+    }
 }
+
+

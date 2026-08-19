@@ -12,11 +12,15 @@ namespace MommyAndSunny.Application.Admin.Products.DTOs
         public string Slug { get; set; } = string.Empty;
         public string? Description { get; set; }
         public string? Brand { get; set; }
-        public int AgeRangeMinMonths { get; set; }
-        public int AgeRangeMaxMonths { get; set; }
+        public int? AgeRangeMinMonths { get; set; }
+        public int? AgeRangeMaxMonths { get; set; }
         public string Status { get; set; } = string.Empty;
 
+        public Guid? PurchaseBatchId { get; set; }
+        public string? PurchaseBatchName { get; set; }
+
         public List<ProductImageAdminDto> Images { get; set; } = new();
+        public List<ProductSpecificationAdminDto> Specifications { get; set; } = new();
         public List<ProductVariantAdminDto> Variants { get; set; } = new();
     }
 }

@@ -16,6 +16,7 @@ namespace MommyAndSunny.Infrastructure.Persistence.Configurations
             builder.Property(i => i.ProductNameSnapshot).IsRequired().HasMaxLength(255);
             builder.Property(i => i.SkuSnapshot).IsRequired().HasMaxLength(50);
             builder.Property(i => i.VariantDescriptionSnapshot).HasMaxLength(100);
+            builder.Property(i => i.PurchaseBatchNameSnapshot).HasMaxLength(200);
 
             builder.Property(i => i.UnitPrice).HasColumnType("numeric(12,2)");
             builder.Property(i => i.Subtotal).HasColumnType("numeric(12,2)");
