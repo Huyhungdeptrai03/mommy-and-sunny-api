@@ -34,6 +34,9 @@ namespace MommyAndSunny.Application.Common.Interfaces
         DbSet<PurchaseBatch> PurchaseBatches { get; }
         DbSet<Coupon> Coupons { get; }
         DbSet<WishlistItem> WishlistItems { get; }
+        DbSet<Policy> Policies { get; }
+        DbSet<ArticleComment> ArticleComments { get; }
+        DbSet<PersonalImportRequest> PersonalImportRequests { get; }
 
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     }

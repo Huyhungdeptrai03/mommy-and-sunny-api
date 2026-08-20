@@ -11,5 +11,8 @@ namespace MommyAndSunny.Application.Admin.Articles.Services
         Task<AdminArticleDto> UpdateArticleAsync(Guid id, UpdateArticleRequest request, CancellationToken cancellationToken = default);
         Task UpdateArticleStatusAsync(Guid id, UpdateArticleStatusRequest request, CancellationToken cancellationToken = default);
         Task DeleteArticleAsync(Guid id, CancellationToken cancellationToken = default);
+
+        Task<PagedResult<AdminArticleCommentDto>> GetCommentsAsync(AdminArticleCommentFilterRequest filter, CancellationToken cancellationToken = default);
+        Task DeleteCommentAsync(Guid id, CancellationToken cancellationToken = default);
     }
 }

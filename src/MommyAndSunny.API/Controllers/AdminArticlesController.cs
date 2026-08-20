@@ -58,5 +58,19 @@ namespace MommyAndSunny.API.Controllers
             await _adminArticleService.DeleteArticleAsync(id, cancellationToken);
             return NoContent();
         }
+
+        [HttpGet("comments")]
+        public async Task<IActionResult> GetComments([FromQuery] AdminArticleCommentFilterRequest filter, CancellationToken cancellationToken)
+        {
+            var result = await _adminArticleService.GetCommentsAsync(filter, cancellationToken);
+            return Ok(new { success = true, data = result, message = (string?)null });
+        }
+
+        [HttpDelete("comments/{id}")]
+        public async Task<IActionResult> DeleteComment(Guid id, CancellationToken cancellationToken)
+        {
+            await _adminArticleService.DeleteCommentAsync(id, cancellationToken);
+            return NoContent();
+        }
     }
 }

@@ -153,6 +153,50 @@ namespace MommyAndSunny.Application.Admin.Articles.Services
             await _context.SaveChangesAsync(cancellationToken);
         }
 
+        public async Task<PagedResult<AdminArticleCommentDto>> GetCommentsAsync(AdminArticleCommentFilterRequest filter, CancellationToken cancellationToken = default)
+        {
+            var query = _context.ArticleComments
+                .Include(c => c.Article)
+                .Include(c => c.User)
+                .OrderByDescending(c => c.CreatedAt)
+                .AsQueryable();
+
+            var totalCount = await query.CountAsync(cancellationToken);
+
+            var items = await query
+                .Skip((filter.Page - 1) * filter.PageSize)
+                .Take(filter.PageSize)
+                .Select(c => new AdminArticleCommentDto
+                {
+                    Id = c.Id,
+                    ArticleId = c.ArticleId,
+                    ArticleTitle = c.Article.Title,
+                    ArticleSlug = c.Article.Slug,
+                    UserFullName = c.User.FullName,
+                    UserEmail = c.User.Email,
+                    Content = c.Content,
+                    CreatedAt = c.CreatedAt
+                })
+                .ToListAsync(cancellationToken);
+
+            return new PagedResult<AdminArticleCommentDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = filter.Page,
+                PageSize = filter.PageSize
+            };
+        }
+
+        public async Task DeleteCommentAsync(Guid id, CancellationToken cancellationToken = default)
+        {
+            var comment = await _context.ArticleComments.FirstOrDefaultAsync(c => c.Id == id, cancellationToken)
+                ?? throw new NotFoundException("bình luận", id.ToString());
+
+            _context.ArticleComments.Remove(comment);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
         private async Task<string> GenerateUniqueSlugAsync(string title, CancellationToken cancellationToken)
         {
             var baseSlug = SlugGenerator.GenerateSlug(title);

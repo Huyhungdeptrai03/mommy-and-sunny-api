@@ -80,5 +80,58 @@ namespace MommyAndSunny.Application.Articles.Services
                 PublishedAt = article.PublishedAt
             };
         }
+
+        public async Task<List<ArticleCommentDto>> GetCommentsAsync(Guid articleId, CancellationToken cancellationToken = default)
+        {
+            return await _context.ArticleComments
+                .Include(c => c.User)
+                .Where(c => c.ArticleId == articleId)
+                .OrderByDescending(c => c.CreatedAt)
+                .Select(c => new ArticleCommentDto
+                {
+                    Id = c.Id,
+                    UserFullName = c.User.FullName,
+                    Content = c.Content,
+                    CreatedAt = c.CreatedAt
+                })
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<ArticleCommentDto> CreateCommentAsync(
+            Guid articleId, Guid userId, CreateArticleCommentRequest request, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(request.Content))
+            {
+                throw new DomainException("Nội dung bình luận không được để trống");
+            }
+
+            var articleExists = await _context.Articles
+                .AnyAsync(a => a.Id == articleId && a.Status == ArticleStatus.Published, cancellationToken);
+            if (!articleExists)
+            {
+                throw new NotFoundException("bài viết", articleId.ToString());
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken)
+                ?? throw new UnauthorizedException("Yêu cầu đăng nhập");
+
+            var comment = new Domain.Entities.ArticleComment
+            {
+                ArticleId = articleId,
+                UserId = userId,
+                Content = request.Content.Trim()
+            };
+
+            _context.ArticleComments.Add(comment);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            return new ArticleCommentDto
+            {
+                Id = comment.Id,
+                UserFullName = user.FullName,
+                Content = comment.Content,
+                CreatedAt = comment.CreatedAt
+            };
+        }
     }
 }

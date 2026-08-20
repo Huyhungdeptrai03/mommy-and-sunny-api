@@ -140,6 +140,38 @@ namespace MommyAndSunny.Infrastructure.Migrations
                     b.ToTable("Articles", (string)null);
                 });
 
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.ArticleComment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ArticleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ArticleId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ArticleComments", (string)null);
+                });
+
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.Cart", b =>
                 {
                     b.Property<Guid>("Id")
@@ -536,6 +568,145 @@ namespace MommyAndSunny.Infrastructure.Migrations
                     b.HasIndex("OrderId");
 
                     b.ToTable("Payments", (string)null);
+                });
+
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.PersonalImportRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdminNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CustomerEmail")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("CustomerName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("CustomerPhone")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("ProductLink")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PersonalImportRequests", (string)null);
+                });
+
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.Policy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("Policies", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("a1a1a1a1-0001-0001-0001-000000000001"),
+                            Content = "Nội dung chính sách đổi trả đang được cập nhật.",
+                            CreatedAt = new DateTime(2026, 8, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Slug = "doi-tra",
+                            Title = "Chính sách đổi trả",
+                            UpdatedAt = new DateTime(2026, 8, 20, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("a1a1a1a1-0002-0002-0002-000000000002"),
+                            Content = "Nội dung chính sách vận chuyển đang được cập nhật.",
+                            CreatedAt = new DateTime(2026, 8, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Slug = "van-chuyen",
+                            Title = "Chính sách vận chuyển",
+                            UpdatedAt = new DateTime(2026, 8, 20, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("a1a1a1a1-0003-0003-0003-000000000003"),
+                            Content = "Nội dung chính sách bảo mật đang được cập nhật.",
+                            CreatedAt = new DateTime(2026, 8, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Slug = "bao-mat",
+                            Title = "Chính sách bảo mật",
+                            UpdatedAt = new DateTime(2026, 8, 20, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Id = new Guid("a1a1a1a1-0004-0004-0004-000000000004"),
+                            Content = "Nội dung điều khoản dịch vụ đang được cập nhật.",
+                            CreatedAt = new DateTime(2026, 8, 20, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Slug = "dieu-khoan",
+                            Title = "Điều khoản dịch vụ",
+                            UpdatedAt = new DateTime(2026, 8, 20, 0, 0, 0, 0, DateTimeKind.Utc)
+                        });
                 });
 
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.Product", b =>
@@ -944,6 +1115,25 @@ namespace MommyAndSunny.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.ArticleComment", b =>
+                {
+                    b.HasOne("MommyAndSunny.Domain.Entities.Article", "Article")
+                        .WithMany()
+                        .HasForeignKey("ArticleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MommyAndSunny.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Article");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.Cart", b =>
                 {
                     b.HasOne("MommyAndSunny.Domain.Entities.User", "User")
@@ -1058,6 +1248,16 @@ namespace MommyAndSunny.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Order");
+                });
+
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.PersonalImportRequest", b =>
+                {
+                    b.HasOne("MommyAndSunny.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.Product", b =>

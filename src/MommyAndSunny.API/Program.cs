@@ -193,6 +193,10 @@ if (!app.Environment.IsDevelopment())
 
 // Thứ tự bắt buộc: Authentication TRƯỚC Authorization
 // Thứ tự bắt buộc: CORS phải đứng TRƯỚC Authentication/Authorization
+// Phục vụ file tĩnh từ wwwroot (VD: /uploads/xxx.jpg) — dùng cho ảnh khách tự tải lên
+// qua UploadsController, lưu trực tiếp trên đĩa vì dự án chưa cấu hình storage ngoài (S3/Cloudinary)
+app.UseStaticFiles();
+
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();

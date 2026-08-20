@@ -24,9 +24,9 @@ namespace MommyAndSunny.API.Controllers
         }
 
         [HttpGet("revenue-chart")]
-        public async Task<IActionResult> GetRevenueChart([FromQuery] int days, CancellationToken cancellationToken)
+        public async Task<IActionResult> GetRevenueChart([FromQuery] DateTime? fromDate, [FromQuery] DateTime? toDate, CancellationToken cancellationToken)
         {
-            var result = await _dashboardService.GetRevenueChartAsync(days == 0 ? 7 : days, cancellationToken);
+            var result = await _dashboardService.GetRevenueChartAsync(fromDate, toDate, cancellationToken);
             return Ok(new { success = true, data = result, message = (string?)null });
         }
     }

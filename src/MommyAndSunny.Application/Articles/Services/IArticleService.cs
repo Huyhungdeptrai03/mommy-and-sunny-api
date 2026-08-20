@@ -7,5 +7,7 @@ namespace MommyAndSunny.Application.Articles.Services
     {
         Task<PagedResult<ArticleListItemDto>> GetArticlesAsync(ArticleFilterRequest filter, CancellationToken cancellationToken = default);
         Task<ArticleDto> GetArticleBySlugAsync(string slug, CancellationToken cancellationToken = default);
+        Task<List<ArticleCommentDto>> GetCommentsAsync(Guid articleId, CancellationToken cancellationToken = default);
+        Task<ArticleCommentDto> CreateCommentAsync(Guid articleId, Guid userId, CreateArticleCommentRequest request, CancellationToken cancellationToken = default);
     }
 }

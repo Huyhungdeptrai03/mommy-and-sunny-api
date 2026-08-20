@@ -32,6 +32,9 @@ namespace MommyAndSunny.Infrastructure.Persistence
         public DbSet<PurchaseBatch> PurchaseBatches => Set<PurchaseBatch>();
         public DbSet<Coupon> Coupons => Set<Coupon>();
         public DbSet<WishlistItem> WishlistItems => Set<WishlistItem>();
+        public DbSet<Policy> Policies => Set<Policy>();
+        public DbSet<ArticleComment> ArticleComments => Set<ArticleComment>();
+        public DbSet<PersonalImportRequest> PersonalImportRequests => Set<PersonalImportRequest>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

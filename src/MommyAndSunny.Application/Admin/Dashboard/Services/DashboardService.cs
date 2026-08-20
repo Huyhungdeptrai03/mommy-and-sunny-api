@@ -46,12 +46,31 @@ namespace MommyAndSunny.Application.Admin.Dashboard.Services
             };
         }
 
-        public async Task<List<RevenueChartPointDto>> GetRevenueChartAsync(int days, CancellationToken cancellationToken = default)
+        private const int MaxRevenueChartRangeDays = 90;
+
+        public async Task<List<RevenueChartPointDto>> GetRevenueChartAsync(DateTime? fromDate, DateTime? toDate, CancellationToken cancellationToken = default)
         {
-            var fromDate = DateTime.UtcNow.Date.AddDays(-(days - 1));
+            var todayUtc = DateTime.UtcNow.Date;
+            // fromDate/toDate đến từ query string nên Kind luôn là Unspecified — Npgsql từ chối
+            // so sánh với cột timestamptz nếu không ép rõ về UTC (khác biệt so với DashboardService
+            // cũ dùng DateTime.UtcNow.Date, vốn đã sẵn Kind=Utc)
+            var rangeTo = DateTime.SpecifyKind((toDate ?? todayUtc).Date, DateTimeKind.Utc);
+            var rangeFrom = DateTime.SpecifyKind((fromDate ?? rangeTo.AddDays(-6)).Date, DateTimeKind.Utc);
+
+            if (rangeFrom > rangeTo)
+            {
+                (rangeFrom, rangeTo) = (rangeTo, rangeFrom);
+            }
+
+            // Chặn khoảng quá rộng — khớp giới hạn "tối đa 90 ngày" đã ghi trên FE,
+            // tránh query quét toàn bộ lịch sử đơn hàng nếu client gửi khoảng ngày bất thường
+            if ((rangeTo - rangeFrom).Days > MaxRevenueChartRangeDays)
+            {
+                rangeFrom = rangeTo.AddDays(-MaxRevenueChartRangeDays);
+            }
 
             var rawData = await _context.Orders
-                .Where(o => o.Status == OrderStatus.Delivered && o.CreatedAt >= fromDate)
+                .Where(o => o.Status == OrderStatus.Delivered && o.CreatedAt >= rangeFrom && o.CreatedAt < rangeTo.AddDays(1))
                 .GroupBy(o => o.CreatedAt.Date)
                 .Select(g => new { Date = g.Key, Revenue = g.Sum(o => o.TotalAmount) })
                 .ToListAsync(cancellationToken);
@@ -59,7 +78,7 @@ namespace MommyAndSunny.Application.Admin.Dashboard.Services
             // Điền đủ tất cả các ngày trong khoảng (kể cả ngày doanh thu = 0) —
             // để FE vẽ biểu đồ liên tục, không bị đứt quãng ở ngày không có đơn
             var result = new List<RevenueChartPointDto>();
-            for (var date = fromDate; date <= DateTime.UtcNow.Date; date = date.AddDays(1))
+            for (var date = rangeFrom; date <= rangeTo; date = date.AddDays(1))
             {
                 var match = rawData.FirstOrDefault(r => r.Date == date);
                 result.Add(new RevenueChartPointDto
