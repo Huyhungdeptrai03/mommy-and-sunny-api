@@ -1,5 +1,4 @@
-﻿using FluentValidation;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using MommyAndSunny.Application.Auth.DTOs;
 using MommyAndSunny.Application.Auth.Services;
 
@@ -10,36 +9,17 @@ namespace MommyAndSunny.API.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
-        private readonly IValidator<RegisterRequest> _registerValidator;
-        private readonly IValidator<LoginRequest> _loginValidator;
 
-        public AuthController(
-            IAuthService authService,
-            IValidator<RegisterRequest> registerValidator,
-            IValidator<LoginRequest> loginValidator)
+        public AuthController(IAuthService authService)
         {
             _authService = authService;
-            _registerValidator = registerValidator;
-            _loginValidator = loginValidator;
         }
 
+        // Validate RegisterRequest/LoginRequest giờ chạy tự động qua ValidationActionFilter
+        // (đăng ký toàn cục trong Program.cs) — không cần inject + gọi IValidator thủ công nữa
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterRequest request, CancellationToken cancellationToken)
         {
-            var validationResult = await _registerValidator.ValidateAsync(request, cancellationToken);
-            if (!validationResult.IsValid)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    data = (object?)null,
-                    message = "Dữ liệu không hợp lệ",
-                    errors = validationResult.Errors
-                        .GroupBy(e => e.PropertyName)
-                        .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray())
-                });
-            }
-
             var result = await _authService.RegisterAsync(request, cancellationToken);
 
             return StatusCode(201, new
@@ -53,20 +33,6 @@ namespace MommyAndSunny.API.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginRequest request, CancellationToken cancellationToken)
         {
-            var validationResult = await _loginValidator.ValidateAsync(request, cancellationToken);
-            if (!validationResult.IsValid)
-            {
-                return BadRequest(new
-                {
-                    success = false,
-                    data = (object?)null,
-                    message = "Dữ liệu không hợp lệ",
-                    errors = validationResult.Errors
-                        .GroupBy(e => e.PropertyName)
-                        .ToDictionary(g => g.Key, g => g.Select(e => e.ErrorMessage).ToArray())
-                });
-            }
-
             var result = await _authService.LoginAsync(request, cancellationToken);
 
             return Ok(new

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using MommyAndSunny.API.Filters;
 using MommyAndSunny.API.Middleware;
 using MommyAndSunny.API.Services;
 using MommyAndSunny.Application.Auth.DTOs;
@@ -25,7 +26,12 @@ if (!string.IsNullOrEmpty(port))
 }
 
 // ===== Controllers + Swagger =====
-builder.Services.AddControllers()
+builder.Services.AddControllers(options =>
+    {
+        // Tự động validate MỌI action có tham số khớp với 1 IValidator<T> đã đăng ký —
+        // xem ghi chú chi tiết trong ValidationActionFilter.cs
+        options.Filters.Add<ValidationActionFilter>();
+    })
     .AddJsonOptions(options =>
     {
         // Cho phép gửi/nhận enum dưới dạng chuỗi ("COD", "Pending"...) thay vì số (0, 1, 2...)

@@ -22,9 +22,9 @@ namespace MommyAndSunny.Application.Auth.Validators
                 .NotEmpty().WithMessage("Họ tên không được để trống")
                 .MaximumLength(150);
 
-           // RuleFor(x => x.PhoneNumber)
-            //    .Matches(@"^0\d{9,10}$").WithMessage("Số điện thoại không hợp lệ")
-            //    .When(x => !string.IsNullOrEmpty(x.PhoneNumber));
+            RuleFor(x => x.PhoneNumber)
+                .Matches(@"^0\d{9,10}$").WithMessage("Số điện thoại không hợp lệ")
+                .When(x => !string.IsNullOrEmpty(x.PhoneNumber));
         }
     }
 }
