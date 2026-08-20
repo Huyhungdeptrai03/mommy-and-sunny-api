@@ -15,6 +15,7 @@ namespace MommyAndSunny.Application.Common.Interfaces
         DbSet<Address> Addresses { get; }
         DbSet<Category> Categories { get; }
         DbSet<Product> Products { get; }
+        DbSet<Article> Articles { get; }
         DbSet<ProductImage> ProductImages { get; }
         DbSet<ProductSpecification> ProductSpecifications { get; }
         DbSet<ProductVariant> ProductVariants { get; }

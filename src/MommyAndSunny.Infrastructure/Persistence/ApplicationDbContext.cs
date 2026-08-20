@@ -17,6 +17,7 @@ namespace MommyAndSunny.Infrastructure.Persistence
         public DbSet<Address> Addresses => Set<Address>();
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<Product> Products => Set<Product>();
+        public DbSet<Article> Articles => Set<Article>();
         public DbSet<ProductImage> ProductImages => Set<ProductImage>();
         public DbSet<ProductSpecification> ProductSpecifications => Set<ProductSpecification>();
         public DbSet<ProductVariant> ProductVariants => Set<ProductVariant>();
