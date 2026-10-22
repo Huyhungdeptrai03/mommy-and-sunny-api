@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -21,7 +21,7 @@ namespace MommyAndSunny.Application.Cart.DTOs
         public string? Warning { get; set; }
 
         // Có giá trị nghĩa là sản phẩm này thuộc đợt hàng đặt trước (xách tay) —
-        // FE dùng để ẩn lựa chọn MoMo ở Checkout khi giỏ hàng có sản phẩm loại này
+        // FE dùng để ẩn lựa chọn SePay ở Checkout khi giỏ hàng có sản phẩm loại này
         public string? PurchaseBatchName { get; set; }
     }
 }

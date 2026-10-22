@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using MommyAndSunny.Application.Common.Interfaces;
 using MommyAndSunny.Application.Common.Models;
 using MommyAndSunny.Application.Coupons.Services;
@@ -13,23 +13,26 @@ public class OrderService : IOrderService
 {
     private readonly IApplicationDbContext _context;
     private readonly ICurrentUserService _currentUserService;
-    private readonly IMomoPaymentService _momoPaymentService;
+    private readonly ISePayPaymentService _sePayPaymentService;
     private readonly ICouponService _couponService;
 
     public OrderService(
         IApplicationDbContext context,
         ICurrentUserService currentUserService,
-        IMomoPaymentService momoPaymentService,
+        ISePayPaymentService sePayPaymentService,
         ICouponService couponService)
     {
         _context = context;
         _currentUserService = currentUserService;
-        _momoPaymentService = momoPaymentService;
+        _sePayPaymentService = sePayPaymentService;
         _couponService = couponService;
     }
 
     public async Task<CreateOrderResponse> CreateOrderAsync(CreateOrderRequest request, CancellationToken cancellationToken = default)
     {
+        if (request.PaymentMethod != PaymentMethod.COD && request.PaymentMethod != PaymentMethod.SePay)
+            throw new DomainException("Ch? h? tr? COD ho?c SePay");
+
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("Yêu cầu đăng nhập");
 
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
@@ -68,12 +71,12 @@ public class OrderService : IOrderService
             throw new DomainException("Giỏ hàng trống, không thể đặt hàng");
         }
 
-        // CHẶN MoMo cho đơn có sản phẩm đặt trước — mô hình cọc (thu thủ công, Admin tự
-        // đánh dấu đã thu) hoàn toàn không tương thích với việc MoMo thu ĐỦ 100% ngay
+        // CHẶN SePay cho đơn có sản phẩm đặt trước — mô hình cọc (thu thủ công, Admin tự
+        // đánh dấu đã thu) hoàn toàn không tương thích với việc SePay thu ĐỦ 100% ngay
         // lúc đặt hàng. Bắt buộc dùng COD, cọc/thanh toán nốt xử lý ngoài hệ thống
         // (xem AdminOrderService — luồng Đặt cọc/Đánh dấu đã thanh toán)
         var hasPreOrderItems = cartItems.Any(i => i.ProductVariant.Product.PurchaseBatchId != null);
-        if (hasPreOrderItems && request.PaymentMethod == PaymentMethod.Momo)
+        if (hasPreOrderItems && request.PaymentMethod == PaymentMethod.SePay)
         {
             throw new DomainException(
                 "Đơn hàng có sản phẩm đặt trước (hàng xách tay) chỉ hỗ trợ thanh toán COD. " +
@@ -132,6 +135,17 @@ public class OrderService : IOrderService
             CustomerNote = request.CustomerNote
         };
 
+        // Generate QR before changing inventory/cart so unavailable payments do not create stranded orders.
+        string? paymentUrl = null;
+        if (order.PaymentMethod == PaymentMethod.SePay)
+        {
+            var payment = await _sePayPaymentService.CreatePaymentRequestAsync(
+                order.OrderCode, order.TotalAmount, $"Payment for {order.OrderCode}", cancellationToken);
+            if (!payment.Success || string.IsNullOrWhiteSpace(payment.PayUrl))
+                throw new DomainException(payment.ErrorMessage ?? "SePay payment is unavailable");
+            paymentUrl = payment.PayUrl;
+        }
+
         // Ghi nhận lượt dùng NGAY — cùng 1 DbContext với order nên sẽ được lưu chung
         // trong đúng 1 SaveChangesAsync bên dưới (atomic, không cần transaction riêng)
         if (appliedCoupon is not null)
@@ -189,27 +203,6 @@ public class OrderService : IOrderService
             // RowVersion trên ProductVariant phát hiện có request khác vừa sửa tồn kho
             // đồng thời — an toàn hơn là báo lỗi để khách thử lại, tránh bán vượt tồn kho
             throw new ConflictException("Có thay đổi tồn kho trong lúc bạn đặt hàng, vui lòng thử lại");
-        }
-
-        string? paymentUrl = null;
-
-        // Chỉ khởi tạo giao dịch MoMo SAU KHI đơn hàng đã lưu thành công — nếu MoMo lỗi,
-        // đơn hàng vẫn tồn tại ở trạng thái Pending/chưa thanh toán, khách có thể thử lại
-        // thanh toán sau, không mất đơn hàng vừa đặt
-        if (order.PaymentMethod == PaymentMethod.Momo)
-        {
-            var momoResult = await _momoPaymentService.CreatePaymentRequestAsync(
-                order.OrderCode,
-                order.TotalAmount,
-                $"Thanh toan don hang {order.OrderCode}",
-                cancellationToken);
-
-            if (momoResult.Success)
-            {
-                paymentUrl = momoResult.PayUrl;
-            }
-            // Nếu MoMo lỗi, không throw exception — đơn hàng vẫn được tạo thành công,
-            // khách chỉ đơn giản chưa có link thanh toán ngay, FE sẽ hiển thị phù hợp
         }
 
         return new CreateOrderResponse

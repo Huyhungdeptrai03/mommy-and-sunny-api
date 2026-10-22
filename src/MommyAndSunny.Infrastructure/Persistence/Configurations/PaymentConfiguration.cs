@@ -15,10 +15,13 @@ namespace MommyAndSunny.Infrastructure.Persistence.Configurations
 
             builder.Property(p => p.Provider).HasConversion<string>().HasMaxLength(20).IsRequired();
             builder.Property(p => p.TransactionId).HasMaxLength(100);
+            builder.HasIndex(p => new { p.Provider, p.TransactionId })
+                .IsUnique()
+                .HasFilter("\"TransactionId\" IS NOT NULL");
             builder.Property(p => p.Amount).HasColumnType("numeric(12,2)");
             builder.Property(p => p.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
 
-            // jsonb — kiểu dữ liệu native của PostgreSQL, lưu response gốc từ Momo/VNPay để debug
+            // jsonb — kiểu dữ liệu native của PostgreSQL, lưu response gốc từ SePay để debug
             builder.Property(p => p.RawCallbackData).HasColumnType("jsonb");
         }
     }

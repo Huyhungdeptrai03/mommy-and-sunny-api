@@ -17,7 +17,7 @@ namespace MommyAndSunny.Infrastructure.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.10")
+                .HasAnnotation("ProductVersion", "10.0.4")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -269,6 +269,96 @@ namespace MommyAndSunny.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Categories", (string)null);
+                });
+
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.ChatMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ConversationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ProductTagsJson")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SenderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SenderId");
+
+                    b.HasIndex("ConversationId", "CreatedAt");
+
+                    b.HasIndex("ConversationId", "IsRead");
+
+                    b.ToTable("ChatMessages", (string)null);
+                });
+
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.Conversation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AssignedAdminId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("LastMessageAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedAdminId");
+
+                    b.HasIndex("CustomerId")
+                        .IsUnique()
+                        .HasFilter("\"Status\" <> 'Closed'");
+
+                    b.HasIndex("LastMessageAt");
+
+                    b.HasIndex("CustomerId", "Status");
+
+                    b.ToTable("Conversations", (string)null);
                 });
 
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.Coupon", b =>
@@ -566,6 +656,10 @@ namespace MommyAndSunny.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("OrderId");
+
+                    b.HasIndex("Provider", "TransactionId")
+                        .IsUnique()
+                        .HasFilter("\"TransactionId\" IS NOT NULL");
 
                     b.ToTable("Payments", (string)null);
                 });
@@ -1174,6 +1268,43 @@ namespace MommyAndSunny.Infrastructure.Migrations
                     b.Navigation("ParentCategory");
                 });
 
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.ChatMessage", b =>
+                {
+                    b.HasOne("MommyAndSunny.Domain.Entities.Conversation", "Conversation")
+                        .WithMany("Messages")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MommyAndSunny.Domain.Entities.User", "Sender")
+                        .WithMany()
+                        .HasForeignKey("SenderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+
+                    b.Navigation("Sender");
+                });
+
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.Conversation", b =>
+                {
+                    b.HasOne("MommyAndSunny.Domain.Entities.User", "AssignedAdmin")
+                        .WithMany()
+                        .HasForeignKey("AssignedAdminId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MommyAndSunny.Domain.Entities.User", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AssignedAdmin");
+
+                    b.Navigation("Customer");
+                });
+
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.Coupon", b =>
                 {
                     b.HasOne("MommyAndSunny.Domain.Entities.Category", "Category")
@@ -1370,6 +1501,11 @@ namespace MommyAndSunny.Infrastructure.Migrations
                     b.Navigation("ChildCategories");
 
                     b.Navigation("Products");
+                });
+
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.Conversation", b =>
+                {
+                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.Order", b =>

@@ -35,6 +35,8 @@ namespace MommyAndSunny.Infrastructure.Persistence
         public DbSet<Policy> Policies => Set<Policy>();
         public DbSet<ArticleComment> ArticleComments => Set<ArticleComment>();
         public DbSet<PersonalImportRequest> PersonalImportRequests => Set<PersonalImportRequest>();
+        public DbSet<Conversation> Conversations => Set<Conversation>();
+        public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {

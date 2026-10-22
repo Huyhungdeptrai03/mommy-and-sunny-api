@@ -13,6 +13,24 @@ namespace MommyAndSunny.API.Filters
     {
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
+            var emptyGuidArguments = context.ActionArguments
+                .Where(argument => argument.Value is Guid guid && guid == Guid.Empty)
+                .Select(argument => argument.Key)
+                .ToArray();
+            if (emptyGuidArguments.Length > 0)
+            {
+                context.Result = new BadRequestObjectResult(new
+                {
+                    success = false,
+                    data = (object?)null,
+                    message = "Dữ liệu không hợp lệ",
+                    errors = emptyGuidArguments.ToDictionary(
+                        name => name,
+                        _ => new[] { "Định danh không hợp lệ" })
+                });
+                return;
+            }
+
             foreach (var argument in context.ActionArguments.Values)
             {
                 if (argument is null) continue;
@@ -24,7 +42,7 @@ namespace MommyAndSunny.API.Filters
                 }
 
                 var validationContext = new ValidationContext<object>(argument);
-                var result = await validator.ValidateAsync(validationContext);
+                var result = await validator.ValidateAsync(validationContext, context.HttpContext.RequestAborted);
 
                 if (!result.IsValid)
                 {

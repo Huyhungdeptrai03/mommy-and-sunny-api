@@ -12,10 +12,12 @@ namespace MommyAndSunny.Application.Auth.Validators
         {
             RuleFor(x => x.Email)
                 .NotEmpty().WithMessage("Email không được để trống")
-                .EmailAddress().WithMessage("Email không hợp lệ");
+                .EmailAddress().WithMessage("Email không hợp lệ")
+                .MaximumLength(254);
 
             RuleFor(x => x.Password)
-                .NotEmpty().WithMessage("Mật khẩu không được để trống");
+                .NotEmpty().WithMessage("Mật khẩu không được để trống")
+                .MaximumLength(128);
         }
     }
 }

@@ -7,6 +7,8 @@ namespace MommyAndSunny.Application.Admin.Products.Validators
     {
         public UpdateProductRequestValidator()
         {
+            RuleFor(x => x.CategoryId).NotEmpty().WithMessage("Vui lòng chọn danh mục");
+
             RuleFor(x => x.Name)
                 .NotEmpty().WithMessage("Tên sản phẩm không được để trống")
                 .MaximumLength(255);
@@ -20,6 +22,10 @@ namespace MommyAndSunny.Application.Admin.Products.Validators
             RuleFor(x => x.AgeRangeMaxMonths).GreaterThanOrEqualTo(0)
                 .WithMessage("Độ tuổi tối đa không được âm")
                 .When(x => x.AgeRangeMaxMonths.HasValue);
+
+            RuleFor(x => x.AgeRangeMaxMonths).GreaterThanOrEqualTo(x => x.AgeRangeMinMonths)
+                .When(x => x.AgeRangeMinMonths.HasValue && x.AgeRangeMaxMonths.HasValue)
+                .WithMessage("Độ tuổi tối đa phải lớn hơn hoặc bằng độ tuổi tối thiểu");
         }
     }
 }

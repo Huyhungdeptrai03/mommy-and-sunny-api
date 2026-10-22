@@ -37,6 +37,8 @@ namespace MommyAndSunny.Application.Common.Interfaces
         DbSet<Policy> Policies { get; }
         DbSet<ArticleComment> ArticleComments { get; }
         DbSet<PersonalImportRequest> PersonalImportRequests { get; }
+        DbSet<Conversation> Conversations { get; }
+        DbSet<ChatMessage> ChatMessages { get; }
 
         Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     }

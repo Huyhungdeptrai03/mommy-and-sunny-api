@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -10,7 +10,7 @@ using MommyAndSunny.Domain.Enums;
 namespace MommyAndSunny.Infrastructure.BackgroundJobs;
 // CỐ Ý đặt tên KHÔNG kết thúc bằng "Service" — tránh Scrutor tự động bắt nhầm class
 // này (không có interface tương ứng), cùng lý do đã áp dụng với LogEmailSender,
-// SmtpEmailSender, MomoPaymentGateway ở các bước trước
+// SmtpEmailSender, SePayPaymentGateway ở các bước trước
 public class StaleOrderCleanupJob : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
@@ -49,7 +49,7 @@ public class StaleOrderCleanupJob : BackgroundService
             {
                 // Lỗi ở background job không được làm crash cả ứng dụng — chỉ log lại,
                 // vòng lặp tiếp theo sẽ tự thử lại
-                _logger.LogError(ex, "Lỗi khi dọn dẹp đơn hàng MoMo bị treo");
+                _logger.LogError(ex, "Lỗi khi dọn dẹp đơn hàng SePay bị treo");
             }
 
             await Task.Delay(_checkInterval, stoppingToken);
@@ -65,20 +65,20 @@ public class StaleOrderCleanupJob : BackgroundService
 
         var ordersToCancel = new List<(Order Order, string Reason)>();
 
-        // ===== Nhánh 1: đơn MoMo chưa thanh toán quá lâu (đã có từ trước) =====
+        // ===== Nhánh 1: đơn SePay chưa thanh toán quá lâu (đã có từ trước) =====
         var cutoff = DateTime.UtcNow - _staleThreshold;
-        var staleMomoOrders = await context.Orders
+        var staleSePayOrders = await context.Orders
             .Include(o => o.Items)
             .Where(o =>
-                o.PaymentMethod == PaymentMethod.Momo &&
+                o.PaymentMethod == PaymentMethod.SePay &&
                 o.PaymentStatus == OrderPaymentStatus.Unpaid &&
                 o.Status == OrderStatus.Pending &&
                 o.CreatedAt < cutoff)
             .ToListAsync(cancellationToken);
 
-        foreach (var order in staleMomoOrders)
+        foreach (var order in staleSePayOrders)
         {
-            ordersToCancel.Add((order, "Tự động hủy do quá thời gian chưa thanh toán MoMo"));
+            ordersToCancel.Add((order, "Tự động hủy do quá thời gian chưa thanh toán SePay"));
         }
 
         // ===== Nhánh 2 (MỚI): đơn COD có sản phẩm đặt trước, chưa thu cọc, và đợt hàng

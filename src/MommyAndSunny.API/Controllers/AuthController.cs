@@ -1,11 +1,13 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using MommyAndSunny.Application.Auth.DTOs;
+using Microsoft.AspNetCore.RateLimiting;
 using MommyAndSunny.Application.Auth.Services;
 
 namespace MommyAndSunny.API.Controllers
 {
     [ApiController]
     [Route("api/auth")]
+    [EnableRateLimiting("authentication")]
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
@@ -18,6 +20,7 @@ namespace MommyAndSunny.API.Controllers
         // Validate RegisterRequest/LoginRequest giờ chạy tự động qua ValidationActionFilter
         // (đăng ký toàn cục trong Program.cs) — không cần inject + gọi IValidator thủ công nữa
         [HttpPost("register")]
+        [EnableRateLimiting("sensitive-authentication")]
         public async Task<IActionResult> Register(RegisterRequest request, CancellationToken cancellationToken)
         {
             var result = await _authService.RegisterAsync(request, cancellationToken);
@@ -58,6 +61,7 @@ namespace MommyAndSunny.API.Controllers
         }
 
         [HttpPost("forgot-password")]
+        [EnableRateLimiting("sensitive-authentication")]
         public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest request, CancellationToken cancellationToken)
         {
             await _authService.ForgotPasswordAsync(request, cancellationToken);
@@ -71,6 +75,7 @@ namespace MommyAndSunny.API.Controllers
         }
 
         [HttpPost("reset-password")]
+        [EnableRateLimiting("sensitive-authentication")]
         public async Task<IActionResult> ResetPassword(ResetPasswordRequest request, CancellationToken cancellationToken)
         {
             await _authService.ResetPasswordAsync(request, cancellationToken);

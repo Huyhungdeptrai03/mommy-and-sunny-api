@@ -1,10 +1,10 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
 namespace MommyAndSunny.Application.Common.Payments.DTOs
 {
-    public class MomoCreatePaymentResult
+    public class SePayCreatePaymentResult
     {
         public bool Success { get; set; }
         public string? PayUrl { get; set; }

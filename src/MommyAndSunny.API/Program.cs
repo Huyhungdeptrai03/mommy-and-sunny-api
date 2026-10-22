@@ -1,11 +1,14 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using MommyAndSunny.API.Filters;
 using MommyAndSunny.API.Middleware;
 using MommyAndSunny.API.Services;
+using MommyAndSunny.API.Hubs;
 using MommyAndSunny.Application.Auth.DTOs;
 using MommyAndSunny.Application.Common.Interfaces;
 using MommyAndSunny.Application.Common.Options;
@@ -14,8 +17,14 @@ using MommyAndSunny.Infrastructure.ExternalServices;
 using MommyAndSunny.Infrastructure.ExternalServices.Email;
 using MommyAndSunny.Infrastructure.Persistence;
 using System.Text;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.WebHost.ConfigureKestrel(options =>
+    options.Limits.MaxRequestBodySize = 10 * 1024 * 1024);
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+    options.MultipartBodyLengthLimit = 6 * 1024 * 1024);
 
 // Railway (và nhiều nền tảng hosting khác) tự cấp port qua biến môi trường PORT —
 // ứng dụng phải lắng nghe đúng port đó, không dùng cổng cố định như lúc chạy local
@@ -39,6 +48,35 @@ builder.Services.AddControllers(options =>
         options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
     });
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSignalR(options =>
+{
+    options.MaximumReceiveMessageSize = 16 * 1024;
+    options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+});
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(options =>
+{
+    options.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(entry => entry.Value?.Errors.Count > 0)
+            .ToDictionary(
+                entry => string.IsNullOrWhiteSpace(entry.Key) ? "request" : entry.Key,
+                entry => entry.Value!.Errors
+                    .Select(error => string.IsNullOrWhiteSpace(error.ErrorMessage)
+                        ? "Giá trị không đúng định dạng"
+                        : error.ErrorMessage)
+                    .Distinct()
+                    .ToArray());
+
+        return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(new
+        {
+            success = false,
+            data = (object?)null,
+            message = "Dữ liệu không hợp lệ",
+            errors
+        });
+    };
+});
 
 // Cấu hình Swagger UI hiểu và gửi kèm JWT Bearer token trong header —
 // nếu không có đoạn này, nút "Authorize" không thực sự đính kèm token vào request
@@ -96,6 +134,60 @@ builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequest>();
 
 builder.Services.AddHttpContextAccessor();
 
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+    options.ForwardLimit = 1;
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("uploads", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(10),
+            QueueLimit = 0
+        }));
+    options.AddPolicy("payment-callbacks", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 120,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+    options.AddPolicy("authentication", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 20,
+            Window = TimeSpan.FromMinutes(5),
+            QueueLimit = 0
+        }));
+    options.AddPolicy("sensitive-authentication", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(15),
+            QueueLimit = 0
+        }));
+    options.AddPolicy("chat", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ??
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 60,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+});
+
 // ===== Email Service — fallback thông minh, không phụ thuộc cứng vào môi trường =====
 // Nếu CHƯA cấu hình Smtp:Host (dù ở Development hay Production) -> chỉ ghi log,
 // tránh việc đăng ký tài khoản bị lỗi 500 vì thiếu cấu hình SMTP thật.
@@ -111,18 +203,34 @@ else
     builder.Services.AddScoped<IEmailService, SmtpEmailSender>();
 }
 
-// ===== MoMo Payment =====
-// Mặc định dùng sandbox test công khai của MoMo (xem ghi chú trong MomoOptions.cs) —
-// hoạt động ngay không cần cấu hình gì thêm để test luồng tạo giao dịch
-builder.Services.Configure<MomoOptions>(builder.Configuration.GetSection("Momo"));
-builder.Services.AddHttpClient<IMomoPaymentService, MomoPaymentGateway>();
+// SePay bank transfer QR + authenticated webhook.
+var sePayOptions = builder.Services.AddOptions<SePayOptions>()
+    .Bind(builder.Configuration.GetSection("SePay"));
+if (!builder.Environment.IsDevelopment())
+{
+    sePayOptions.Validate(o => !o.UseMock, "SePay mock mode is only allowed in Development")
+        .Validate(o => !string.IsNullOrWhiteSpace(o.Bank) &&
+                              !string.IsNullOrWhiteSpace(o.AccountNumber) &&
+                              !string.IsNullOrWhiteSpace(o.WebhookApiKey),
+        "Configure SePay:Bank, SePay:AccountNumber and SePay:WebhookApiKey")
+        .ValidateOnStart();
+}
+if (builder.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("SePay:UseMock"))
+    builder.Services.AddSingleton<ISePayPaymentService, MockSePayPaymentGateway>();
+else
+    builder.Services.AddSingleton<ISePayPaymentService, SePayPaymentGateway>();
 
-// ===== Background Job — tự động hủy đơn MoMo bị treo (chưa thanh toán quá lâu) =====
 builder.Services.AddHostedService<StaleOrderCleanupJob>();
 
 // ===== JWT Authentication (phần bị thiếu gây lỗi trước đó) =====
 var jwtSecret = builder.Configuration["Jwt:Secret"]
     ?? throw new InvalidOperationException("Thiếu cấu hình Jwt:Secret trong appsettings");
+
+if (!builder.Environment.IsDevelopment() &&
+    (jwtSecret.Length < 32 || jwtSecret.Contains("doi-truoc-khi-len-production", StringComparison.OrdinalIgnoreCase)))
+{
+    throw new InvalidOperationException("Jwt:Secret production phải là secret riêng, dài tối thiểu 32 ký tự");
+}
 
 builder.Services.AddAuthentication(options =>
 {
@@ -141,6 +249,16 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = builder.Configuration["Jwt:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
     };
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.Request.Path.StartsWithSegments("/hubs/chat"))
+                context.Token = accessToken;
+            return Task.CompletedTask;
+        }
+    };
 });
 
 builder.Services.AddAuthorization();
@@ -149,8 +267,19 @@ builder.Services.AddAuthorization();
 // ===== CORS — đọc danh sách origin cho phép từ config, hỗ trợ cả local dev lẫn production =====
 // Ví dụ giá trị "Cors:AllowedOrigins" trên Railway (biến môi trường Cors__AllowedOrigins):
 // "http://localhost:3000,https://ten-du-an.vercel.app"
-var allowedOrigins = builder.Configuration["Cors:AllowedOrigins"]?.Split(',')
-    ?? new[] { "http://localhost:3000" };
+var allowedOrigins = (builder.Configuration["Cors:AllowedOrigins"] ?? "http://localhost:3000")
+    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    .Select(origin => origin.TrimEnd('/'))
+    .Distinct(StringComparer.OrdinalIgnoreCase)
+    .ToArray();
+if (!builder.Environment.IsDevelopment() &&
+    (allowedOrigins.Length == 0 || allowedOrigins.Any(origin =>
+        !Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
+        uri.Scheme != Uri.UriSchemeHttps ||
+        !string.IsNullOrEmpty(uri.PathAndQuery.Trim('/')))))
+{
+    throw new InvalidOperationException("Cors:AllowedOrigins production phải chứa HTTPS origin hợp lệ");
+}
 
 builder.Services.AddCors(options =>
 {
@@ -158,11 +287,14 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(allowedOrigins)
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .AllowCredentials();
     });
 });
 
 var app = builder.Build();
+
+app.UseForwardedHeaders();
 
 // ===== Seed dữ liệu mẫu (chỉ ở Development) =====
 // ===== Migration + Seed data =====
@@ -182,6 +314,7 @@ using (var scope = app.Services.CreateScope())
 
 // ===== Middleware pipeline =====
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
@@ -206,8 +339,10 @@ app.UseStaticFiles();
 app.UseCors("AllowFrontend");
 
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<ChatHub>("/hubs/chat");
 
 app.Run();
