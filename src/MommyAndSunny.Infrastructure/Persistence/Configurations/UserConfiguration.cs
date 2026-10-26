@@ -17,6 +17,9 @@ namespace MommyAndSunny.Infrastructure.Persistence.Configurations
                 .IsRequired()
                 .HasMaxLength(255);
             builder.HasIndex(u => u.Email).IsUnique();
+            builder.Property(u => u.NormalizedEmail).IsRequired().HasMaxLength(255);
+            builder.HasIndex(u => u.NormalizedEmail).IsUnique();
+            builder.Property(u => u.ConcurrencyStamp).IsConcurrencyToken();
 
             builder.Property(u => u.PasswordHash).HasMaxLength(255);
             builder.Property(u => u.FullName).IsRequired().HasMaxLength(150);

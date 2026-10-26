@@ -45,7 +45,7 @@ public class OrderService : IOrderService
         // sản phẩm/thêm giỏ hàng, nhưng BẮT BUỘC xác thực trước khi đặt hàng
         if (!user.EmailVerified)
         {
-            throw new DomainException(
+            throw new AuthException("EMAIL_VERIFICATION_REQUIRED", 403,
                 "Vui lòng xác thực email trước khi đặt hàng. Kiểm tra hộp thư đến (hoặc mục Spam) của bạn.");
         }
 

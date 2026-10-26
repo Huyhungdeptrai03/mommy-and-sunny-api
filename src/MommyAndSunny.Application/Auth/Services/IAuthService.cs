@@ -13,5 +13,8 @@ namespace MommyAndSunny.Application.Auth.Services
         Task VerifyEmailAsync(VerifyEmailRequest request, CancellationToken cancellationToken = default);
         Task ForgotPasswordAsync(ForgotPasswordRequest request, CancellationToken cancellationToken = default);
         Task ResetPasswordAsync(ResetPasswordRequest request, CancellationToken cancellationToken = default);
+        Task<AuthResponse> CreateSessionAsync(MommyAndSunny.Domain.Entities.User user, CancellationToken cancellationToken = default);
+        Task LogoutAsync(string? refreshToken, CancellationToken cancellationToken = default);
+        Task ResendVerificationAsync(string email, CancellationToken cancellationToken = default);
     }
 }

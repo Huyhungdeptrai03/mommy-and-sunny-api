@@ -77,7 +77,7 @@ namespace MommyAndSunny.Application.Admin.Users.Services
                 throw new DomainException("Không thể tự thay đổi quyền của chính mình");
             }
 
-            if (!Enum.TryParse<UserRole>(request.Role, out var newRole))
+            if (!Enum.TryParse<UserRole>(request.Role, out var newRole) || !Enum.IsDefined(newRole))
             {
                 throw new DomainException("Vai trò không hợp lệ");
             }
@@ -86,6 +86,9 @@ namespace MommyAndSunny.Application.Admin.Users.Services
                 ?? throw new NotFoundException("người dùng", id.ToString());
 
             user.Role = newRole;
+            user.SecurityVersion = Guid.NewGuid();
+            var sessions = await _context.AuthSessions.Where(s => s.UserId == user.Id && s.RevokedAt == null).ToListAsync(cancellationToken);
+            foreach (var session in sessions) { session.RevokedAt = DateTime.UtcNow; session.Version = Guid.NewGuid(); }
             await _context.SaveChangesAsync(cancellationToken);
 
             return new AdminUserDto

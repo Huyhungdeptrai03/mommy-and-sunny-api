@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using MommyAndSunny.Application.Common.Interfaces;
 using System;
 using System.Collections.Generic;
@@ -23,6 +23,8 @@ namespace MommyAndSunny.Infrastructure.ExternalServices.Email
             string verificationLink,
             CancellationToken cancellationToken = default)
         {
+            fullName = System.Net.WebUtility.HtmlEncode(fullName);
+            verificationLink = System.Net.WebUtility.HtmlEncode(verificationLink);
             var host = _configuration["Smtp:Host"]
                 ?? throw new InvalidOperationException("Thiếu cấu hình Smtp:Host");
             var port = int.Parse(_configuration["Smtp:Port"] ?? "587");
@@ -59,6 +61,8 @@ namespace MommyAndSunny.Infrastructure.ExternalServices.Email
             string resetLink,
             CancellationToken cancellationToken = default)
         {
+            fullName = System.Net.WebUtility.HtmlEncode(fullName);
+            resetLink = System.Net.WebUtility.HtmlEncode(resetLink);
             var host = _configuration["Smtp:Host"]
                 ?? throw new InvalidOperationException("Thiếu cấu hình Smtp:Host");
             var port = int.Parse(_configuration["Smtp:Port"] ?? "587");

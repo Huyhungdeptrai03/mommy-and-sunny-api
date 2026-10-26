@@ -172,6 +172,41 @@ namespace MommyAndSunny.Infrastructure.Migrations
                     b.ToTable("ArticleComments", (string)null);
                 });
 
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.AuthSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SecurityVersion")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("AuthSessions", (string)null);
+                });
+
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.Cart", b =>
                 {
                     b.Property<Guid>("Id")
@@ -418,6 +453,118 @@ namespace MommyAndSunny.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("Coupons", (string)null);
+                });
+
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.ExternalHandoff", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BrowserHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("ConsumedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EmailTokenHash")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("EmailVerified")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<string>("PendingEmail")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("ProviderEmail")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("ProviderSubject")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .UseCollation("C");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CodeHash")
+                        .IsUnique();
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.ToTable("ExternalHandoffs", (string)null);
+                });
+
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.ExternalLogin", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("LastUsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Provider")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("ProviderSubject")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .UseCollation("C");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Provider", "ProviderSubject")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "Provider")
+                        .IsUnique();
+
+                    b.ToTable("ExternalLogins", (string)null);
                 });
 
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.Order", b =>
@@ -1039,6 +1186,10 @@ namespace MommyAndSunny.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("ConsumedAt")
+                        .IsConcurrencyToken()
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1046,7 +1197,11 @@ namespace MommyAndSunny.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("RevokedAt")
+                        .IsConcurrencyToken()
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("SessionId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("TokenHash")
                         .IsRequired()
@@ -1060,6 +1215,8 @@ namespace MommyAndSunny.Infrastructure.Migrations
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SessionId");
 
                     b.HasIndex("TokenHash")
                         .IsUnique();
@@ -1118,6 +1275,10 @@ namespace MommyAndSunny.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<Guid>("ConcurrencyStamp")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1140,6 +1301,11 @@ namespace MommyAndSunny.Infrastructure.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("character varying(150)");
 
+                    b.Property<string>("NormalizedEmail")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
                     b.Property<string>("PasswordHash")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
@@ -1159,12 +1325,18 @@ namespace MommyAndSunny.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<Guid>("SecurityVersion")
+                        .HasColumnType("uuid");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("NormalizedEmail")
                         .IsUnique();
 
                     b.ToTable("Users", (string)null);
@@ -1224,6 +1396,17 @@ namespace MommyAndSunny.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Article");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.AuthSession", b =>
+                {
+                    b.HasOne("MommyAndSunny.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("User");
                 });
@@ -1313,6 +1496,17 @@ namespace MommyAndSunny.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("Category");
+                });
+
+            modelBuilder.Entity("MommyAndSunny.Domain.Entities.ExternalLogin", b =>
+                {
+                    b.HasOne("MommyAndSunny.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.Order", b =>
@@ -1444,11 +1638,18 @@ namespace MommyAndSunny.Infrastructure.Migrations
 
             modelBuilder.Entity("MommyAndSunny.Domain.Entities.RefreshToken", b =>
                 {
+                    b.HasOne("MommyAndSunny.Domain.Entities.AuthSession", "Session")
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("MommyAndSunny.Domain.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Session");
 
                     b.Navigation("User");
                 });

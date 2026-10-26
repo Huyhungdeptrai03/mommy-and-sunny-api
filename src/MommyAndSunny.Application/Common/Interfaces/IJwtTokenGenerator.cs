@@ -7,7 +7,7 @@ namespace MommyAndSunny.Application.Common.Interfaces
 {
     public interface IJwtTokenGenerator
     {
-        string GenerateAccessToken(User user);
+        string GenerateAccessToken(User user, Guid sessionId);
         string GenerateRefreshToken();
     }
 }

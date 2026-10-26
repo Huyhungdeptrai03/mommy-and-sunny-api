@@ -18,6 +18,12 @@ using MommyAndSunny.Infrastructure.ExternalServices.Email;
 using MommyAndSunny.Infrastructure.Persistence;
 using System.Text;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
+using MommyAndSunny.API.Controllers;
+using System.Security.Claims;
+using Microsoft.AspNetCore.SignalR;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,6 +56,7 @@ builder.Services.AddControllers(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSignalR(options =>
 {
+    options.AddFilter<SessionHubFilter>();
     options.MaximumReceiveMessageSize = 16 * 1024;
     options.EnableDetailedErrors = builder.Environment.IsDevelopment();
 });
@@ -123,7 +130,7 @@ builder.Services.Scan(scan => scan
         typeof(ApplicationDbContext).Assembly,        // Infrastructure
         typeof(CurrentUserService).Assembly)          // API
     .AddClasses(classes => classes.Where(type =>
-        type.Name.EndsWith("Service") ||
+        (type.Name.EndsWith("Service") && type != typeof(SessionValidationService)) ||
         type.Name.EndsWith("Hasher") ||
         type.Name.EndsWith("Generator")))
     .AsMatchingInterface()
@@ -133,18 +140,43 @@ builder.Services.Scan(scan => scan
 builder.Services.AddValidatorsFromAssemblyContaining<RegisterRequest>();
 
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<BrowserSession>();
+builder.Services.AddScoped<SessionValidationService>();
+builder.Services.AddSingleton<HubConnections>();
+builder.Services.AddHostedService<HubSessionRevocationWorker>();
+builder.Services.AddAntiforgery(options =>
+{
+    options.HeaderName = "X-CSRF-TOKEN";
+    options.Cookie.Name = "__Host-ms-csrf";
+    options.Cookie.Path = "/";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+});
+var publicUrl = builder.Configuration["Frontend:BaseUrl"];
+if (!Uri.TryCreate(publicUrl, UriKind.Absolute, out var publicUri) ||
+    publicUri.Scheme != "https" || !string.IsNullOrEmpty(publicUri.UserInfo) ||
+    publicUri.AbsolutePath != "/" || !string.IsNullOrEmpty(publicUri.Query) || !string.IsNullOrEmpty(publicUri.Fragment))
+    throw new InvalidOperationException("Frontend:BaseUrl must be the single public HTTPS origin (including local HTTPS development).");
+var keys = builder.Services.AddDataProtection().SetApplicationName("MommyAndSunny.MemberAuth");
+var keysPath = builder.Configuration["Authentication:DataProtectionKeysPath"];
+if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(keysPath))
+    throw new InvalidOperationException("Configure Authentication:DataProtectionKeysPath on a protected persistent volume.");
+if (!string.IsNullOrWhiteSpace(keysPath)) keys.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.KnownIPNetworks.Clear();
-    options.KnownProxies.Clear();
+    // Keep framework loopback defaults. Only add explicitly configured reverse proxy IPs.
+    foreach (var ip in (builder.Configuration["ReverseProxy:KnownProxies"] ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        options.KnownProxies.Add(System.Net.IPAddress.Parse(ip));
     options.ForwardLimit = 1;
 });
 
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = MemberAuthRateLimits.RejectAsync;
     options.AddPolicy("uploads", context => RateLimitPartition.GetFixedWindowLimiter(
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         _ => new FixedWindowRateLimiterOptions
@@ -161,22 +193,7 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0
         }));
-    options.AddPolicy("authentication", context => RateLimitPartition.GetFixedWindowLimiter(
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 20,
-            Window = TimeSpan.FromMinutes(5),
-            QueueLimit = 0
-        }));
-    options.AddPolicy("sensitive-authentication", context => RateLimitPartition.GetFixedWindowLimiter(
-        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-        _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = 5,
-            Window = TimeSpan.FromMinutes(15),
-            QueueLimit = 0
-        }));
+    MemberAuthRateLimits.AddPolicies(options);
     options.AddPolicy("chat", context => RateLimitPartition.GetFixedWindowLimiter(
         context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ??
         context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -188,18 +205,18 @@ builder.Services.AddRateLimiter(options =>
         }));
 });
 
-// ===== Email Service — fallback thông minh, không phụ thuộc cứng vào môi trường =====
-// Nếu CHƯA cấu hình Smtp:Host (dù ở Development hay Production) -> chỉ ghi log,
-// tránh việc đăng ký tài khoản bị lỗi 500 vì thiếu cấu hình SMTP thật.
-// Khi nào có SMTP thật, chỉ cần thêm biến môi trường Smtp:Host trên Railway là
-// tự động chuyển sang gửi email thật, không cần sửa code hay redeploy thủ công logic này.
+// Production requires SMTP. Development sink never logs recovery secrets.
 var smtpHost = builder.Configuration["Smtp:Host"];
 if (string.IsNullOrWhiteSpace(smtpHost))
 {
+    if (!builder.Environment.IsDevelopment())
+        throw new InvalidOperationException("Production requires real SMTP; logging recovery links is prohibited.");
     builder.Services.AddScoped<IEmailService, LogEmailSender>();
 }
 else
 {
+    if (!builder.Environment.IsDevelopment() && string.IsNullOrWhiteSpace(builder.Configuration["Smtp:FromEmail"]))
+        throw new InvalidOperationException("Configure Smtp:FromEmail.");
     builder.Services.AddScoped<IEmailService, SmtpEmailSender>();
 }
 
@@ -216,7 +233,7 @@ if (!builder.Environment.IsDevelopment())
         .ValidateOnStart();
 }
 if (builder.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("SePay:UseMock"))
-    builder.Services.AddSingleton<ISePayPaymentService, MockSePayPaymentGateway>();
+    builder.Services.AddSingleton<ISePayPaymentService>(_ => new MockSePayPaymentGateway(publicUrl!));
 else
     builder.Services.AddSingleton<ISePayPaymentService, SePayPaymentGateway>();
 
@@ -232,7 +249,7 @@ if (!builder.Environment.IsDevelopment() &&
     throw new InvalidOperationException("Jwt:Secret production phải là secret riêng, dài tối thiểu 32 ký tự");
 }
 
-builder.Services.AddAuthentication(options =>
+var authentication = builder.Services.AddAuthentication(options =>
 {
     options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -245,12 +262,35 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
+        ValidAlgorithms = new[] { SecurityAlgorithms.HmacSha256 },
+        ClockSkew = TimeSpan.FromSeconds(15),
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret))
     };
     options.Events = new JwtBearerEvents
     {
+        OnTokenValidated = async context =>
+        {
+            if (!await context.HttpContext.RequestServices.GetRequiredService<SessionValidationService>()
+                .IsValidAsync(context.Principal, context.HttpContext.RequestAborted))
+            {
+                context.HttpContext.Items["auth_error"] = "SESSION_REVOKED";
+                context.Fail("Session no longer valid.");
+            }
+        },
+        OnChallenge = async context =>
+        {
+            context.HandleResponse();
+            context.Response.StatusCode = 401;
+            await context.Response.WriteAsJsonAsync(new { success = false, data = (object?)null,
+                code = context.HttpContext.Items["auth_error"] as string ?? "SESSION_EXPIRED", message = "Yêu cầu đăng nhập lại." });
+        },
+        OnForbidden = async context =>
+        {
+            context.Response.StatusCode = 403;
+            await context.Response.WriteAsJsonAsync(new { success = false, data = (object?)null, code = "FORBIDDEN", message = "Không đủ quyền." });
+        },
         OnMessageReceived = context =>
         {
             var accessToken = context.Request.Query["access_token"];
@@ -261,13 +301,59 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
+authentication.AddCookie(ExternalAuthController.ExternalScheme, options =>
+{
+    options.Cookie.Name = "__Host-ms-external";
+    options.Cookie.Path = "/";
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+    options.SlidingExpiration = false;
+});
+void ConfigureExternal(Microsoft.AspNetCore.Authentication.OAuth.OAuthOptions options, string provider)
+{
+    options.SignInScheme = ExternalAuthController.ExternalScheme;
+    options.CallbackPath = $"/api/auth/external/{provider}/callback";
+    options.SaveTokens = false;
+    options.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.CorrelationCookie.HttpOnly = true;
+    options.CorrelationCookie.SameSite = SameSiteMode.Lax;
+    options.RemoteAuthenticationTimeout = TimeSpan.FromMinutes(5);
+    options.Events.OnRemoteFailure = context =>
+    {
+        context.HandleResponse();
+        context.Response.Redirect("/auth/callback?error=OAUTH_FAILED");
+        return Task.CompletedTask;
+    };
+}
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Authentication:Google:ClientId"]) &&
+    !string.IsNullOrWhiteSpace(builder.Configuration["Authentication:Google:ClientSecret"]))
+    authentication.AddGoogle(options =>
+    {
+        ConfigureExternal(options, "google");
+        options.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
+        options.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
+        options.UsePkce = true;
+    });
+if (!string.IsNullOrWhiteSpace(builder.Configuration["Authentication:Facebook:AppId"]) &&
+    !string.IsNullOrWhiteSpace(builder.Configuration["Authentication:Facebook:AppSecret"]))
+    authentication.AddFacebook(options =>
+    {
+        ConfigureExternal(options, "facebook");
+        options.AppId = builder.Configuration["Authentication:Facebook:AppId"]!;
+        options.AppSecret = builder.Configuration["Authentication:Facebook:AppSecret"]!;
+        options.Fields.Add("email");
+        options.Scope.Add("email");
+    });
+
 builder.Services.AddAuthorization();
 
 // ===== CORS — cho phép Frontend Next.js (chạy port 3000) gọi API từ trình duyệt =====
 // ===== CORS — đọc danh sách origin cho phép từ config, hỗ trợ cả local dev lẫn production =====
 // Ví dụ giá trị "Cors:AllowedOrigins" trên Railway (biến môi trường Cors__AllowedOrigins):
 // "http://localhost:3000,https://ten-du-an.vercel.app"
-var allowedOrigins = (builder.Configuration["Cors:AllowedOrigins"] ?? "http://localhost:3000")
+var allowedOrigins = publicUri.GetLeftPart(UriPartial.Authority)
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
     .Select(origin => origin.TrimEnd('/'))
     .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -286,8 +372,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend", policy =>
     {
         policy.WithOrigins(allowedOrigins)
-              .AllowAnyHeader()
-              .AllowAnyMethod()
+              .WithHeaders("Authorization", "Content-Type", "X-CSRF-TOKEN")
+              .WithMethods("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS")
               .AllowCredentials();
     });
 });
@@ -298,12 +384,12 @@ app.UseForwardedHeaders();
 
 // ===== Seed dữ liệu mẫu (chỉ ở Development) =====
 // ===== Migration + Seed data =====
+if (app.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup"))
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-    // Tự động áp dụng migration khi khởi động — quan trọng cho production, vì bạn không có
-    // sẵn terminal để chạy `dotnet ef database update` thủ công trên server như ở local
+    // Explicit development opt-in only; production migrations are reviewed and applied separately.
     await dbContext.Database.MigrateAsync();
 
     if (app.Environment.IsDevelopment())
@@ -322,13 +408,32 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// Chỉ ép HTTPS redirect ở production — ở Development, cho phép gọi HTTP trực tiếp
-// để tránh rắc rối chứng chỉ tự ký (self-signed certificate) khi FE (Next.js Server Component)
-// gọi API từ phía Node.js server, vốn không tin tưởng chứng chỉ dev của .NET
+// Require HTTPS after trusted forwarded headers, including secure local development.
 if (!app.Environment.IsDevelopment())
 {
-    app.UseHttpsRedirection();
+    app.UseHsts();
 }
+app.Use(async (context, next) =>
+{
+    if (!string.Equals(context.Request.Host.Value, publicUri.Authority, StringComparison.OrdinalIgnoreCase))
+    {
+        context.Response.StatusCode = 400;
+        await context.Response.WriteAsJsonAsync(new { success = false, data = (object?)null, code = "INVALID_HOST", message = "Invalid public host." });
+        return;
+    }
+    if (!context.Request.IsHttps)
+    {
+        context.Response.StatusCode = 400;
+        await context.Response.WriteAsJsonAsync(new { success = false, data = (object?)null, code = "HTTPS_REQUIRED", message = "HTTPS required." });
+        return;
+    }
+    if (context.Request.Path.StartsWithSegments("/api/auth"))
+    {
+        context.Response.Headers.CacheControl = "no-store";
+        context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    }
+    await next(context);
+});
 
 // Thứ tự bắt buộc: Authentication TRƯỚC Authorization
 // Thứ tự bắt buộc: CORS phải đứng TRƯỚC Authentication/Authorization
@@ -343,6 +448,6 @@ app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapHub<ChatHub>("/hubs/chat");
+app.MapHub<ChatHub>("/hubs/chat", options => options.CloseOnAuthenticationExpiration = true);
 
 app.Run();

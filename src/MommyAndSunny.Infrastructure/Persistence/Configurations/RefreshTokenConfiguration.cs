@@ -16,6 +16,9 @@ namespace MommyAndSunny.Infrastructure.Persistence.Configurations
             builder.Property(r => r.TokenHash).IsRequired().HasMaxLength(255);
             builder.HasIndex(r => r.TokenHash).IsUnique();
             builder.HasIndex(r => r.UserId);
+            builder.Property(r => r.ConsumedAt).IsConcurrencyToken();
+            builder.Property(r => r.RevokedAt).IsConcurrencyToken();
+            builder.HasOne(r => r.Session).WithMany().HasForeignKey(r => r.SessionId).OnDelete(DeleteBehavior.Cascade);
 
             builder.HasOne(r => r.User)
                 .WithMany()

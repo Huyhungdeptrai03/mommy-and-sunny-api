@@ -5,6 +5,9 @@ namespace MommyAndSunny.Domain.Entities;
 
 public class User : BaseEntity
 {
+    public string NormalizedEmail { get; set; } = string.Empty;
+    public Guid SecurityVersion { get; set; } = Guid.NewGuid();
+    public Guid ConcurrencyStamp { get; set; } = Guid.NewGuid();
     public string Email { get; set; } = string.Empty;
 
     // Null nếu tài khoản đăng ký qua Google (AuthProvider = Google)

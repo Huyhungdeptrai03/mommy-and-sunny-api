@@ -11,6 +11,9 @@ namespace MommyAndSunny.Application.Common.Interfaces
     // là EF Core + PostgreSQL cụ thể — giữ đúng nguyên tắc phụ thuộc 1 chiều đã thống nhất.
     public interface IApplicationDbContext
     {
+        DbSet<AuthSession> AuthSessions { get; }
+        DbSet<ExternalLogin> ExternalLogins { get; }
+        DbSet<ExternalHandoff> ExternalHandoffs { get; }
         DbSet<User> Users { get; }
         DbSet<Address> Addresses { get; }
         DbSet<Category> Categories { get; }

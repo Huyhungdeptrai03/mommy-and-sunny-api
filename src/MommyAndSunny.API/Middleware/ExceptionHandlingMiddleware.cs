@@ -31,6 +31,8 @@ namespace MommyAndSunny.API.Middleware
         {
             var (statusCode, message) = exception switch
             {
+                AuthException auth => ((HttpStatusCode)auth.StatusCode, auth.Message),
+                Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException => (HttpStatusCode.Conflict, "Dữ liệu đã thay đổi; vui lòng thử lại."),
                 NotFoundException => (HttpStatusCode.NotFound, exception.Message),
                 ConflictException => (HttpStatusCode.Conflict, exception.Message),
                 UnauthorizedException => (HttpStatusCode.Unauthorized, exception.Message),
@@ -53,7 +55,8 @@ namespace MommyAndSunny.API.Middleware
             {
                 success = false,
                 data = (object?)null,
-                message
+                message,
+                code = exception is AuthException authError ? authError.Code : statusCode == HttpStatusCode.Unauthorized ? "SESSION_EXPIRED" : "REQUEST_FAILED"
             };
 
             await context.Response.WriteAsync(JsonSerializer.Serialize(response));

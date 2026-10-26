@@ -20,17 +20,19 @@ namespace MommyAndSunny.Infrastructure.Identity
             _configuration = configuration;
         }
 
-        public string GenerateAccessToken(User user)
+        public string GenerateAccessToken(User user, Guid sessionId)
         {
             var secret = _configuration["Jwt:Secret"]
                 ?? throw new InvalidOperationException("Thiếu cấu hình Jwt:Secret trong appsettings");
             var issuer = _configuration["Jwt:Issuer"];
             var audience = _configuration["Jwt:Audience"];
-            var expirationMinutes = int.Parse(_configuration["Jwt:AccessTokenExpirationMinutes"] ?? "60");
+            var expirationMinutes = MommyAndSunny.Application.Auth.Services.AuthService.AccessMinutes(_configuration);
 
             var claims = new[]
             {
             new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
+            new Claim("sid", sessionId.ToString()),
+            new Claim("auth_ver", user.SecurityVersion.ToString()),
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
             new Claim(ClaimTypes.Role, user.Role.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
@@ -51,8 +53,7 @@ namespace MommyAndSunny.Infrastructure.Identity
 
         public string GenerateRefreshToken()
         {
-            // MVP: sinh chuỗi ngẫu nhiên, CHƯA lưu vào DB để validate/thu hồi.
-            // Cần bổ sung bảng RefreshTokens (Tier 2) để rotate + revoke đúng chuẩn bảo mật.
+            // Only a SHA-256 hash is persisted by AuthService.
             var randomBytes = new byte[64];
             RandomNumberGenerator.Fill(randomBytes);
             return Convert.ToBase64String(randomBytes);

@@ -1,7 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using MommyAndSunny.Application.Auth.DTOs;
 using Microsoft.AspNetCore.RateLimiting;
 using MommyAndSunny.Application.Auth.Services;
+using MommyAndSunny.API.Services;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
+using MommyAndSunny.Application.Common.Interfaces;
 
 namespace MommyAndSunny.API.Controllers
 {
@@ -11,10 +16,12 @@ namespace MommyAndSunny.API.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
+        private readonly BrowserSession _browser;
 
-        public AuthController(IAuthService authService)
+        public AuthController(IAuthService authService, BrowserSession browser)
         {
             _authService = authService;
+            _browser = browser;
         }
 
         // Validate RegisterRequest/LoginRequest giờ chạy tự động qua ValidationActionFilter
@@ -34,9 +41,11 @@ namespace MommyAndSunny.API.Controllers
         }
 
         [HttpPost("login")]
+        [BrowserCsrf]
         public async Task<IActionResult> Login(LoginRequest request, CancellationToken cancellationToken)
         {
             var result = await _authService.LoginAsync(request, cancellationToken);
+            _browser.Write(Response, result);
 
             return Ok(new
             {
@@ -46,11 +55,47 @@ namespace MommyAndSunny.API.Controllers
             });
         }
 
-        [HttpPost("refresh-token")]
-        public async Task<IActionResult> RefreshToken(RefreshTokenRequest request, CancellationToken cancellationToken)
+        [HttpPost("refresh-token"), EnableRateLimiting(MemberAuthRateLimits.Refresh)]
+        [BrowserCsrf]
+        public async Task<IActionResult> RefreshToken(CancellationToken cancellationToken)
         {
-            var result = await _authService.RefreshTokenAsync(request, cancellationToken);
+            var raw = Request.Cookies[BrowserSession.RefreshCookie];
+            if (string.IsNullOrEmpty(raw)) throw new MommyAndSunny.Domain.Exceptions.AuthException("SESSION_EXPIRED", 401, "Yêu cầu đăng nhập.");
+            AuthResponse result;
+            try { result = await _authService.RefreshTokenAsync(new RefreshTokenRequest { RefreshToken = raw }, cancellationToken); }
+            catch (MommyAndSunny.Domain.Exceptions.AuthException) { _browser.Clear(Response); throw; }
+            _browser.Write(Response, result);
             return Ok(new { success = true, data = result, message = (string?)null });
+        }
+
+        [HttpGet("csrf"), EnableRateLimiting(MemberAuthRateLimits.Csrf)]
+        public IActionResult Csrf([FromServices] IAntiforgery antiforgery)
+        {
+            Response.Headers.CacheControl = "no-store";
+            return Ok(new { success = true, data = new { csrfToken = antiforgery.GetAndStoreTokens(HttpContext).RequestToken }, message = (string?)null });
+        }
+
+        [HttpPost("logout"), BrowserCsrf, EnableRateLimiting(MemberAuthRateLimits.Logout)]
+        public async Task<IActionResult> Logout(CancellationToken ct)
+        {
+            await _authService.LogoutAsync(Request.Cookies[BrowserSession.RefreshCookie], ct);
+            _browser.Clear(Response);
+            return Ok(new { success = true, data = (object?)null, message = (string?)null });
+        }
+
+        [HttpGet("me"), Authorize, EnableRateLimiting(MemberAuthRateLimits.Read)]
+        public async Task<IActionResult> Me([FromServices] IApplicationDbContext db, [FromServices] ICurrentUserService current, CancellationToken ct)
+        {
+            Response.Headers.CacheControl = "no-store";
+            var user = await db.Users.AsNoTracking().SingleAsync(u => u.Id == current.UserId, ct);
+            return Ok(new { success = true, data = AuthService.Map(user), message = (string?)null });
+        }
+
+        [HttpPost("resend-verification"), EnableRateLimiting("sensitive-authentication")]
+        public async Task<IActionResult> Resend(ForgotPasswordRequest request, CancellationToken ct)
+        {
+            await _authService.ResendVerificationAsync(request.Email, ct);
+            return Accepted(new { success = true, data = (object?)null, message = "Nếu tài khoản cần xác thực, hướng dẫn sẽ được gửi qua email." });
         }
 
         [HttpPost("verify-email")]

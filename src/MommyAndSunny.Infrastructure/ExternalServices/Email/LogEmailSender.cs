@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using MommyAndSunny.Application.Common.Interfaces;
 using System;
 using System.Collections.Generic;
@@ -24,12 +24,7 @@ namespace MommyAndSunny.Infrastructure.ExternalServices.Email
             string verificationLink,
             CancellationToken cancellationToken = default)
         {
-            _logger.LogWarning(
-                "===== [DEV] EMAIL XÁC THỰC (chưa gửi thật) =====\n" +
-                "Gửi tới: {Email} ({FullName})\n" +
-                "Link xác thực (copy vào trình duyệt để test): {Link}\n" +
-                "==================================================",
-                toEmail, fullName, verificationLink);
+            _logger.LogWarning("Development email sink: message not sent. Recovery secrets are never logged.");
 
             return Task.CompletedTask;
         }
@@ -40,12 +35,7 @@ namespace MommyAndSunny.Infrastructure.ExternalServices.Email
             string resetLink,
             CancellationToken cancellationToken = default)
         {
-            _logger.LogWarning(
-                "===== [DEV] EMAIL ĐẶT LẠI MẬT KHẨU (chưa gửi thật) =====\n" +
-                "Gửi tới: {Email} ({FullName})\n" +
-                "Link đặt lại mật khẩu (copy vào trình duyệt để test): {Link}\n" +
-                "==========================================================",
-                toEmail, fullName, resetLink);
+            _logger.LogWarning("Development email sink: message not sent. Recovery secrets are never logged.");
 
             return Task.CompletedTask;
         }

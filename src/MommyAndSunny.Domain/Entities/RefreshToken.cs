@@ -7,6 +7,9 @@ namespace MommyAndSunny.Domain.Entities
 {
     public class RefreshToken : BaseEntity
     {
+        public Guid? SessionId { get; set; }
+        public AuthSession? Session { get; set; }
+        public DateTime? ConsumedAt { get; set; }
         public Guid UserId { get; set; }
         public User User { get; set; } = null!;
 

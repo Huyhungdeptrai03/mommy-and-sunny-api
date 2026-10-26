@@ -14,6 +14,9 @@ namespace MommyAndSunny.Infrastructure.Persistence
             : base(options) { }
 
         public DbSet<User> Users => Set<User>();
+        public DbSet<AuthSession> AuthSessions => Set<AuthSession>();
+        public DbSet<ExternalLogin> ExternalLogins => Set<ExternalLogin>();
+        public DbSet<ExternalHandoff> ExternalHandoffs => Set<ExternalHandoff>();
         public DbSet<Address> Addresses => Set<Address>();
         public DbSet<Category> Categories => Set<Category>();
         public DbSet<Product> Products => Set<Product>();
@@ -58,6 +61,11 @@ namespace MommyAndSunny.Infrastructure.Persistence
 
         private void UpdateTimestamps()
         {
+            foreach (var entry in ChangeTracker.Entries<User>().Where(e => e.State is EntityState.Added or EntityState.Modified))
+            {
+                entry.Entity.NormalizedEmail = entry.Entity.Email.Trim().ToLowerInvariant();
+                entry.Entity.ConcurrencyStamp = Guid.NewGuid();
+            }
             var entries = ChangeTracker.Entries<Domain.Common.BaseEntity>()
                 .Where(e => e.State == EntityState.Modified);
 
