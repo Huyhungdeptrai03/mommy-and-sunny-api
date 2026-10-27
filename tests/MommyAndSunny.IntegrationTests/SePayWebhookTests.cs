@@ -12,6 +12,32 @@ namespace MommyAndSunny.IntegrationTests;
 
 public class SePayWebhookTests
 {
+    [Theory]
+    [InlineData(false, "Apikey secret", 404)]
+    [InlineData(true, "Apikey wrong", 400)]
+    [InlineData(true, "Apikey secret", 200)]
+    public async Task RealGatewayEnforcesAvailabilityAndAuthentication(bool enabled, string authorization, int status)
+    {
+        await using var context = CreateContext();
+        var order = AddSePayOrder(context);
+        var historical = new Payment { OrderId = order.Id, Provider = PaymentMethod.SePay,
+            TransactionId = "historical", Amount = 1, Status = PaymentTransactionStatus.Success };
+        context.Payments.Add(historical);
+        await context.SaveChangesAsync();
+        var gateway = new MommyAndSunny.Infrastructure.ExternalServices.SePayPaymentGateway(
+            Microsoft.Extensions.Options.Options.Create(new MommyAndSunny.Application.Common.Options.SePayOptions {
+                Enabled = enabled, Bank = "test", AccountNumber = "001234", WebhookApiKey = "secret" }));
+        var controller = new PaymentsController(context, gateway, NullLogger<PaymentsController>.Instance) {
+            ControllerContext = new ControllerContext { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext() } };
+        controller.Request.Headers.Authorization = authorization;
+        var result = await controller.HandleWebhook(CreateRequest(order), CancellationToken.None);
+        Assert.Equal(status, Assert.IsAssignableFrom<Microsoft.AspNetCore.Mvc.Infrastructure.IStatusCodeActionResult>(result).StatusCode);
+        Assert.Equal(status == 200 ? OrderPaymentStatus.Paid : OrderPaymentStatus.Unpaid, order.PaymentStatus);
+        Assert.Equal(status == 200 ? 2 : 1, await context.Payments.CountAsync());
+        Assert.Equal("historical", (await context.Payments.FindAsync(historical.Id))!.TransactionId);
+        Assert.Single(context.Orders);
+    }
+
     [Fact]
     public async Task ValidIpn_MarksOrderPaidAndStoresTransaction()
     {
@@ -119,6 +145,7 @@ public class SePayWebhookTests
 
     private sealed class AcceptAllSePayWebhooks : ISePayPaymentService
     {
+        public bool IsEnabled => true;
         public Task<SePayCreatePaymentResult> CreatePaymentRequestAsync(
             string orderCode, decimal amount, string orderInfo, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

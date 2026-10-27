@@ -33,6 +33,9 @@ public class OrderService : IOrderService
         if (request.PaymentMethod != PaymentMethod.COD && request.PaymentMethod != PaymentMethod.SePay)
             throw new DomainException("Ch? h? tr? COD ho?c SePay");
 
+        if (request.PaymentMethod == PaymentMethod.SePay && !_sePayPaymentService.IsEnabled)
+            throw new DomainException("SePay hiện không khả dụng. Vui lòng chọn COD.");
+
         var userId = _currentUserService.UserId ?? throw new UnauthorizedException("Yêu cầu đăng nhập");
 
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);

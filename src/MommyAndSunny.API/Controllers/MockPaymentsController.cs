@@ -9,7 +9,7 @@ public sealed class MockPaymentsController(IHostEnvironment environment, IConfig
     [HttpGet]
     public IActionResult Image([FromQuery] string orderCode, [FromQuery] decimal amount)
     {
-        if (!environment.IsDevelopment() || !configuration.GetValue<bool>("SePay:UseMock")) return NotFound();
+        if (!environment.IsDevelopment() || !configuration.GetValue<bool>("SePay:Enabled") || !configuration.GetValue<bool>("SePay:UseMock")) return NotFound();
         if (string.IsNullOrWhiteSpace(orderCode) || orderCode.Length > 128 || amount <= 0 || amount != decimal.Truncate(amount))
             return BadRequest();
         Response.Headers.CacheControl = "no-store";

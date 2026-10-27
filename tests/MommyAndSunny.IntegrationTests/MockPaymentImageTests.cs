@@ -16,11 +16,20 @@ public class MockPaymentImageTests
         public string ContentRootPath { get; set; } = ".";
         public IFileProvider ContentRootFileProvider { get; set; } = new NullFileProvider();
     }
-    private static MockPaymentsController Controller(string environment = "Development", bool mock = true)
+    private static MockPaymentsController Controller(string environment = "Development", bool mock = true, bool? enabled = true)
     {
-        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["SePay:UseMock"] = mock.ToString() }).Build();
+        var settings = new Dictionary<string, string?> { ["SePay:UseMock"] = mock.ToString() };
+        if (enabled.HasValue) settings["SePay:Enabled"] = enabled.Value.ToString();
+        var config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
         return new(new EnvironmentStub(environment), config) { ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() } };
     }
+    [Fact]
+    public void DisabledOrOmittedFlagDoesNotServeMockImage()
+    {
+        Assert.IsType<NotFoundResult>(Controller(enabled: false).Image("MS001", 100000));
+        Assert.IsType<NotFoundResult>(Controller(enabled: null).Image("MS001", 100000));
+    }
+
     [Fact]
     public void DevelopmentServesNonPayableImageAndEscapesInput()
     {

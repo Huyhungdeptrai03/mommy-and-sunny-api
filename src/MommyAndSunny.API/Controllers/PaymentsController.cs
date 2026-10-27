@@ -32,6 +32,9 @@ namespace MommyAndSunny.API.Controllers
         [EnableRateLimiting("payment-callbacks")]
         public async Task<IActionResult> HandleWebhook([FromBody] SePayWebhookRequest request, CancellationToken cancellationToken)
         {
+            if (!_sePayPaymentService.IsEnabled)
+                return NotFound();
+
             if (!_sePayPaymentService.VerifyWebhookAuthorization(HttpContext.Request.Headers.Authorization.ToString()))
             {
                 _logger.LogWarning("Từ chối SePay IPN có chữ ký không hợp lệ cho đơn {OrderId}", request.Code);

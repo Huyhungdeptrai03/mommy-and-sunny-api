@@ -17,6 +17,7 @@ public class StaleOrderCleanupJob : BackgroundService
     private readonly ILogger<StaleOrderCleanupJob> _logger;
     private readonly TimeSpan _checkInterval;
     private readonly TimeSpan _staleThreshold;
+    private readonly bool _sePayEnabled;
 
     public StaleOrderCleanupJob(
         IServiceScopeFactory scopeFactory,
@@ -25,6 +26,7 @@ public class StaleOrderCleanupJob : BackgroundService
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
+        _sePayEnabled = bool.TryParse(configuration["SePay:Enabled"], out var enabled) && enabled;
 
         // Đọc từ config để có thể chỉnh ngắn hơn khi test local (VD: 1 phút/2 phút)
         // mà không cần sửa code — mặc định 5 phút kiểm tra 1 lần, hủy đơn treo quá 30 phút.
@@ -70,7 +72,7 @@ public class StaleOrderCleanupJob : BackgroundService
         var staleSePayOrders = await context.Orders
             .Include(o => o.Items)
             .Where(o =>
-                o.PaymentMethod == PaymentMethod.SePay &&
+                _sePayEnabled && o.PaymentMethod == PaymentMethod.SePay &&
                 o.PaymentStatus == OrderPaymentStatus.Unpaid &&
                 o.Status == OrderStatus.Pending &&
                 o.CreatedAt < cutoff)

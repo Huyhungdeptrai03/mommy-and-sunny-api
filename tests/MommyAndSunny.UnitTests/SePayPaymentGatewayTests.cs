@@ -6,7 +6,19 @@ namespace MommyAndSunny.UnitTests;
 public class SePayPaymentGatewayTests
 {
     private static SePayPaymentGateway Gateway(string key = "secret") => new(Options.Create(new SePayOptions
-    { Bank = "Vietcombank", AccountNumber = "001234", WebhookApiKey = key }));
+    { Enabled = true, Bank = "Vietcombank", AccountNumber = "001234", WebhookApiKey = key }));
+
+    [Fact]
+    public async Task OmittedEnabledDefaultsToDisabledEvenWithCredentials()
+    {
+        var gateway = new SePayPaymentGateway(Options.Create(new SePayOptions {
+            Bank = "Vietcombank", AccountNumber = "001234", WebhookApiKey = "secret" }));
+        Assert.False(gateway.IsEnabled);
+        var result = await gateway.CreatePaymentRequestAsync("MS001", 100000, "");
+        Assert.False(result.Success);
+        Assert.Null(result.PayUrl);
+        Assert.False(gateway.VerifyWebhookAuthorization("Apikey secret"));
+    }
 
     [Theory]
     [InlineData("Apikey secret", true)]
@@ -19,6 +31,17 @@ public class SePayPaymentGatewayTests
 
     [Fact]
     public void EmptySecretFailsClosed() => Assert.False(Gateway("").VerifyWebhookAuthorization("Apikey "));
+
+    [Fact]
+    public async Task DisabledEvenWithCredentialsRejectsQrAndWebhook()
+    {
+        var gateway = new SePayPaymentGateway(Options.Create(new SePayOptions {
+            Enabled = false, Bank = "Vietcombank", AccountNumber = "001234", WebhookApiKey = "secret" }));
+        Assert.False(gateway.IsEnabled);
+        Assert.False((await gateway.CreatePaymentRequestAsync("MS001", 100000, "")).Success);
+        Assert.False(gateway.VerifyWebhookAuthorization("Apikey secret"));
+        Assert.False(gateway.IsReceivingAccount("001234"));
+    }
 
     [Fact]
     public async Task MissingWebhookSecretDoesNotIssuePaymentQr()

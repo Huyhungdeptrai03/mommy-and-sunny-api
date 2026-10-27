@@ -8,6 +8,7 @@ namespace MommyAndSunny.Infrastructure.ExternalServices;
 // Development only. Same HTTPS-image URL contract as production; no bank QR.
 public sealed class MockSePayPaymentGateway(string publicOrigin) : ISePayPaymentService
 {
+    public bool IsEnabled => true;
     public const string ApiKey = "sepay-local-test";
     public const string AccountNumber = "SEPAY_TEST_ACCOUNT";
 

@@ -222,17 +222,16 @@ else
 
 // SePay bank transfer QR + authenticated webhook.
 var sePayOptions = builder.Services.AddOptions<SePayOptions>()
-    .Bind(builder.Configuration.GetSection("SePay"));
+    .Bind(builder.Configuration.GetSection("SePay"))
+    .Validate(o => !o.Enabled || (builder.Environment.IsDevelopment() && o.UseMock) || o.HasRequiredCredentials,
+        "Enabled SePay requires SePay:Bank, SePay:AccountNumber and SePay:WebhookApiKey")
+    .ValidateOnStart();
 if (!builder.Environment.IsDevelopment())
 {
     sePayOptions.Validate(o => !o.UseMock, "SePay mock mode is only allowed in Development")
-        .Validate(o => !string.IsNullOrWhiteSpace(o.Bank) &&
-                              !string.IsNullOrWhiteSpace(o.AccountNumber) &&
-                              !string.IsNullOrWhiteSpace(o.WebhookApiKey),
-        "Configure SePay:Bank, SePay:AccountNumber and SePay:WebhookApiKey")
         .ValidateOnStart();
 }
-if (builder.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("SePay:UseMock"))
+if (builder.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("SePay:Enabled") && builder.Configuration.GetValue<bool>("SePay:UseMock"))
     builder.Services.AddSingleton<ISePayPaymentService>(_ => new MockSePayPaymentGateway(publicUrl!));
 else
     builder.Services.AddSingleton<ISePayPaymentService, SePayPaymentGateway>();

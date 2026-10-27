@@ -11,11 +11,14 @@ namespace MommyAndSunny.Infrastructure.ExternalServices;
 public sealed class SePayPaymentGateway(IOptions<SePayOptions> options) : ISePayPaymentService
 {
     private readonly SePayOptions _options = options.Value;
+    public bool IsEnabled => _options.Enabled && _options.HasRequiredCredentials;
 
     public Task<SePayCreatePaymentResult> CreatePaymentRequestAsync(
         string orderCode, decimal amount, string orderInfo, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (!_options.Enabled)
+            return Task.FromResult(new SePayCreatePaymentResult { Success = false, ErrorMessage = "SePay is disabled." });
         if (string.IsNullOrWhiteSpace(_options.Bank) || string.IsNullOrWhiteSpace(_options.AccountNumber) ||
             string.IsNullOrWhiteSpace(_options.WebhookApiKey))
             return Task.FromResult(new SePayCreatePaymentResult
@@ -36,7 +39,7 @@ public sealed class SePayPaymentGateway(IOptions<SePayOptions> options) : ISePay
 
     public bool VerifyWebhookAuthorization(string? authorization)
     {
-        if (string.IsNullOrWhiteSpace(_options.WebhookApiKey) ||
+        if (!IsEnabled || string.IsNullOrWhiteSpace(_options.WebhookApiKey) ||
             authorization is null || !authorization.StartsWith("Apikey ", StringComparison.OrdinalIgnoreCase))
             return false;
         var expected = SHA256.HashData(Encoding.UTF8.GetBytes(_options.WebhookApiKey));
@@ -45,6 +48,6 @@ public sealed class SePayPaymentGateway(IOptions<SePayOptions> options) : ISePay
     }
 
     public bool IsReceivingAccount(string accountNumber) =>
-        !string.IsNullOrWhiteSpace(_options.AccountNumber) &&
+        IsEnabled && !string.IsNullOrWhiteSpace(_options.AccountNumber) &&
         string.Equals(accountNumber, _options.AccountNumber, StringComparison.Ordinal);
 }
